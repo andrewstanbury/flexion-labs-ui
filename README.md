@@ -45,5 +45,19 @@ content: [
 ## Releasing
 
 This package ships TypeScript source (no build step); Metro/Babel in each app
-transpiles it. To release: commit, then tag (`git tag v0.1.1 && git push --tags`)
-and bump the dependency ref in each app.
+transpiles it. A bad tag breaks **both** apps, so:
+
+1. `npm run verify` (tsc + jest) — must be green.
+2. Bump `version` in `package.json`, commit.
+3. Tag and push: `git tag v0.3.2 && git push origin master v0.3.2`.
+4. In **each** app, bump the dep ref and force npm to re-resolve the git tag
+   (npm caches it by commit):
+   ```bash
+   npm pkg set "dependencies.@flexion-labs/ui=github:andrewstanbury/flexion-labs-ui#v0.3.2"
+   rm -rf node_modules/@flexion-labs/ui
+   npm install "@flexion-labs/ui@github:andrewstanbury/flexion-labs-ui#v0.3.2"
+   ```
+5. `npx tsc --noEmit && npx jest` in each app before merging.
+
+> No `files` whitelist — the whole source tree ships. (An earlier whitelist
+> silently dropped `lib/` and broke a release; don't reintroduce it.)
