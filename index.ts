@@ -1,9 +1,11 @@
-// Public surface of the patient app's design system. App code should only
-// import from `@flexion-labs/ui` — never from individual files inside this
-// package.
+// Public surface of the shared design system. App code should only import from
+// `@flexion-labs/ui` — never from individual files inside this package.
 
 export * from './tokens';
 export * from './UIProvider';
+
+// Utils
+export * from './lib/formatBytes';
 
 // Primitives
 export * from './primitives/Pressable';
@@ -24,6 +26,8 @@ export * from './composites/ToggleRow';
 export * from './composites/EmptyState';
 export * from './composites/StatusScreen';
 export * from './composites/AuthScreenShell';
+export * from './composites/StorageBar';
+export * from './composites/OfflineBanner';
 
 // Shell
 export * from './shell/TabBar';
