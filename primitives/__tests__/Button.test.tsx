@@ -1,13 +1,12 @@
 import { StyleSheet } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import { Button } from '../Button';
-import { UIProvider } from '../../UIProvider';
 
 function labelStyle(node: { props: { style: unknown } }) {
   return StyleSheet.flatten(node.props.style as object) as { textTransform?: string };
 }
 
-describe('<Button /> shape injection', () => {
+describe('<Button />', () => {
   it('fires onPress and renders the label', () => {
     const onPress = jest.fn();
     const { getByText } = render(<Button.Primary onPress={onPress}>Go</Button.Primary>);
@@ -15,17 +14,8 @@ describe('<Button /> shape injection', () => {
     expect(onPress).toHaveBeenCalled();
   });
 
-  it("uppercases the label for the default 'raised' shape", () => {
+  it('uppercases the label (the raised/physical look)', () => {
     const { getByText } = render(<Button.Primary>Go</Button.Primary>);
     expect(labelStyle(getByText('Go')).textTransform).toBe('uppercase');
-  });
-
-  it("keeps normal case for the injected 'flat' shape", () => {
-    const { getByText } = render(
-      <UIProvider buttonShape="flat">
-        <Button.Primary>Go</Button.Primary>
-      </UIProvider>,
-    );
-    expect(labelStyle(getByText('Go')).textTransform).toBeUndefined();
   });
 });

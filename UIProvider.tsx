@@ -13,31 +13,16 @@ type UIContextValue = {
 
 const UIContext = createContext<UIContextValue | null>(null);
 
-// Button shape is the one component look that legitimately differs per app
-// (the client uses a raised/physical button; the practitioner a flat pill).
-// Each app injects its choice at the root via <UIProvider buttonShape>; the
-// shared Button renders accordingly. Defaults to 'raised'.
-export type ButtonShape = 'raised' | 'flat';
-const ButtonShapeContext = createContext<ButtonShape>('raised');
-
 export function UIProvider({
   scheme,
-  buttonShape,
   children,
 }: {
   scheme?: Scheme;
-  buttonShape?: ButtonShape;
   children: ReactNode;
 }) {
   const system = useColorScheme();
   const resolved: Scheme = scheme ?? (system === 'dark' ? 'dark' : 'light');
-  return (
-    <UIContext.Provider value={{ scheme: resolved }}>
-      <ButtonShapeContext.Provider value={buttonShape ?? 'raised'}>
-        {children}
-      </ButtonShapeContext.Provider>
-    </UIContext.Provider>
-  );
+  return <UIContext.Provider value={{ scheme: resolved }}>{children}</UIContext.Provider>;
 }
 
 export function useScheme(): Scheme {
@@ -50,10 +35,6 @@ export function useScheme(): Scheme {
 
 export function useTheme() {
   return theme(useScheme());
-}
-
-export function useButtonShape(): ButtonShape {
-  return useContext(ButtonShapeContext);
 }
 
 // Font-scale: multiplies every design-system Text's fontSize/lineHeight. The app

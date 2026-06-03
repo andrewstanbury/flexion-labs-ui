@@ -17,22 +17,16 @@ Both apps consume this as a git-tag dependency:
 - `composites/` — `SegmentedControl`, `ToggleRow`, `ListItem`, `SectionHeader`, `FormField`, `EmptyState`, `StatusScreen`, `AuthScreenShell`.
 - `shell/` — `TabBar`, `Header`, `BackButton`, `Modal`, `KeyboardScreen`.
 
-## Per-app theming
+## Theming
 
-Most tokens are shared. The two apps differ in exactly one component look — the
-**button** — so each app injects its choice at the root:
+Both apps share the same components and palette. The client additionally uses
+the `coral`/`energy` tokens, which are simply unused by the practitioner. Colors
+could be injected per app in future via `UIProvider` if the two ever need to
+diverge; as of v0.2.0 they don't.
 
-```tsx
-// client (raised/physical buttons)
-<UIProvider buttonShape="raised">…</UIProvider>
-
-// practitioner (flat pill buttons)
-<UIProvider buttonShape="flat">…</UIProvider>
-```
-
-Colors can also be injected per app in future via `UIProvider`; today both apps
-use the shared default palette (the client additionally uses the `coral`/`energy`
-tokens, which are simply unused by the practitioner).
+> History: v0.1.0 supported a per-app `buttonShape` ('raised' vs 'flat'). Both
+> apps settled on the raised look, so v0.2.0 dropped it. Re-add from git history
+> if a per-app button look is ever needed again.
 
 ## Consuming-app setup (NativeWind)
 
