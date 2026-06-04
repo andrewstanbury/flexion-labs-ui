@@ -1,12 +1,16 @@
 import type { ReactElement } from 'react';
-import { ActivityIndicator, type StyleProp, type ViewStyle } from 'react-native';
+import { ActivityIndicator, Pressable, View, type StyleProp, type ViewStyle } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { controlHeight, radius, space, colors as palette } from '../tokens';
 import { useTheme } from '../UIProvider';
-import { Pressable } from './Pressable';
 import { Text } from './Text';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'destructive';
 type Size = 'sm' | 'md' | 'lg';
+
+// Depth of the raised bottom "edge" — and how far the face presses down when
+// tapped, collapsing the edge for a tactile 3D button-press (Duolingo-style).
+const EDGE = 4;
 
 export type ButtonProps = {
   children?: React.ReactNode;
@@ -23,9 +27,9 @@ export type ButtonProps = {
 
 type RootProps = ButtonProps & { variant: Variant };
 
-// `border` is the subtle outline drawn on all sides; `bottomEdge` is a darker
-// shade drawn as a thicker bottom border, together giving each filled button a
-// bordered, raised "physical" look (ghost stays flat/borderless).
+// `border` is the subtle outline on the face; `bottomEdge` is the darker base
+// the face rests on — together a bordered, raised "physical" button. On press
+// the face drops onto the base and the edge disappears (ghost stays flat).
 function useVariantStyle(variant: Variant) {
   const t = useTheme();
   switch (variant) {
@@ -65,55 +69,90 @@ function ButtonRoot({
   const v = useVariantStyle(variant);
   const s = sizeStyle(size);
   const isInactive = disabled || loading;
+  const flat = variant === 'ghost';
+  const edge = flat ? 0 : EDGE;
+  const faceH = s.height - edge;
+
+  // 0 = raised, 1 = pressed flat onto the base.
+  const press = useSharedValue(0);
+  const faceStyle = useAnimatedStyle(() => ({ transform: [{ translateY: press.value * edge }] }));
 
   return (
-    <Pressable.Scale
+    <Pressable
       onPress={onPress}
+      onPressIn={() => {
+        if (!isInactive) press.value = withTiming(1, { duration: 40 });
+      }}
+      onPressOut={() => {
+        press.value = withTiming(0, { duration: 120 });
+      }}
       disabled={isInactive}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ disabled: isInactive, busy: loading }}
       style={[
         {
-          backgroundColor: v.bg,
-          borderColor: v.border,
-          borderWidth: variant === 'ghost' ? 0 : 1.5,
-          borderBottomColor: v.bottomEdge,
-          borderBottomWidth: variant === 'ghost' ? 0 : 4,
-          borderRadius: s.radius,
-          height: s.height,
-          paddingHorizontal: s.paddingH,
-          alignSelf: fullWidth ? 'auto' : 'flex-start',
+          alignSelf: fullWidth ? 'stretch' : 'flex-start',
+          paddingBottom: edge,
           opacity: isInactive ? 0.6 : 1,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: space[2],
         },
         style,
       ]}
     >
-      {loading ? (
-        <ActivityIndicator color={v.fg} size="small" />
-      ) : (
-        <>
-          {leftIcon}
-          <Text
-            variant="button"
-            color={variant === 'primary' ? 'inverse' : variant === 'destructive' ? 'danger' : 'primary'}
-            // Primary text is forced white even when the resolved `inverse`
-            // token doesn't match it (light surface).
-            style={[
-              { textTransform: 'uppercase', letterSpacing: 0.8 },
-              variant === 'primary' ? { color: palette.white } : null,
-            ]}
-          >
-            {children}
-          </Text>
-          {rightIcon}
-        </>
+      {/* Darker base — the 3D edge the face sits above and presses into. */}
+      {!flat && (
+        <View
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            top: edge,
+            bottom: 0,
+            borderRadius: s.radius,
+            backgroundColor: v.bottomEdge,
+          }}
+        />
       )}
-    </Pressable.Scale>
+      {/* Face — drops down by `edge` on press, collapsing the visible edge. */}
+      <Animated.View
+        style={[
+          {
+            height: faceH,
+            borderRadius: s.radius,
+            backgroundColor: v.bg,
+            borderWidth: flat ? 0 : 1.5,
+            borderColor: v.border,
+            paddingHorizontal: s.paddingH,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: space[2],
+          },
+          faceStyle,
+        ]}
+      >
+        {loading ? (
+          <ActivityIndicator color={v.fg} size="small" />
+        ) : (
+          <>
+            {leftIcon}
+            <Text
+              variant="button"
+              color={variant === 'primary' ? 'inverse' : variant === 'destructive' ? 'danger' : 'primary'}
+              // Primary text is forced white even when the resolved `inverse`
+              // token doesn't match it (light surface).
+              style={[
+                { textTransform: 'uppercase', letterSpacing: 0.8 },
+                variant === 'primary' ? { color: palette.white } : null,
+              ]}
+            >
+              {children}
+            </Text>
+            {rightIcon}
+          </>
+        )}
+      </Animated.View>
+    </Pressable>
   );
 }
 
