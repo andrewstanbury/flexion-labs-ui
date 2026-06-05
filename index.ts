@@ -6,6 +6,11 @@ export * from './UIProvider';
 
 // Utils
 export * from './lib/formatBytes';
+export * from './lib/appLockLogic';
+
+// Hooks
+export * from './hooks/useThemeStore';
+export * from './hooks/useIsDark';
 
 // Primitives
 export * from './primitives/Pressable';
