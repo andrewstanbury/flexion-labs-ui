@@ -33,8 +33,8 @@ Consequences:
   repo to warn you.
 - App code must import from the package root (`@flexion-labs/ui`), never from a
   deep path inside the package.
-- There is **no CHANGELOG.** Release history lives in **git tags + commit
-  messages** (`git tag`, `git log`). Current tags: v0.1.0 … v0.6.0.
+- Release history is in [`CHANGELOG.md`](./CHANGELOG.md) (keep it updated on every
+  version bump) plus the git tags. Current tags: v0.1.0 … v0.7.5.
 
 ### Current public export surface (the contract)
 
