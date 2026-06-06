@@ -48,7 +48,7 @@ breaking release across both apps.
   `FontScaleProvider`, `useFontScale`.
 - **Utils** (`lib/`): `formatBytes`, `appLockLogic` (`shouldLockOnForeground`,
   `isLockArmed`).
-- **Hooks** (`hooks/`): `useThemeStore`, `useIsDark`.
+- **Hooks** (`hooks/`): `useThemeStore`, `useIsDark`, `useTabBarPadding`.
 - **Primitives** (`primitives/`): `Pressable`, `Text`, `Button`, `Input`,
   `Card`, `Icon`, `Screen`, `Stack`.
 - **Composites** (`composites/`): `FormField`, `SectionHeader`, `ListItem`,
