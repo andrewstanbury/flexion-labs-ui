@@ -12,6 +12,8 @@ export * from './lib/appLockLogic';
 export * from './hooks/useThemeStore';
 export * from './hooks/useIsDark';
 export * from './hooks/useTabBarPadding';
+export * from './hooks/useAudioMixingStore';
+export * from './hooks/useHaptic';
 
 // Primitives
 export * from './primitives/Pressable';
