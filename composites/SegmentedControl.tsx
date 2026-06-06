@@ -2,7 +2,7 @@ import { View, type StyleProp, type ViewStyle } from 'react-native';
 import type { ComponentProps } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space } from '../tokens';
-import { useScheme } from '../UIProvider';
+import { useScheme, useTheme } from '../UIProvider';
 import { Pressable } from '../primitives/Pressable';
 import { Text } from '../primitives/Text';
 import { Icon } from '../primitives/Icon';
@@ -33,6 +33,7 @@ export function SegmentedControl<T extends string>({
   style,
 }: SegmentedControlProps<T>) {
   const scheme = useScheme();
+  const t = useTheme();
   const surface = scheme === 'dark' ? colors.sand[800] : colors.white;
   const inactiveIcon = scheme === 'dark' ? colors.sand[300] : colors.sand[700];
   return (
@@ -63,11 +64,11 @@ export function SegmentedControl<T extends string>({
               paddingVertical: space[3],
               borderRadius: radius.lg,
               alignItems: 'center',
-              backgroundColor: active ? colors.sage[500] : colors.transparent,
+              backgroundColor: active ? t.accentSurface : colors.transparent,
             }}
           >
             {icon ? (
-              <Icon name={icon} size={18} color={active ? colors.white : inactiveIcon} />
+              <Icon name={icon} size={18} color={active ? t.accentOn : inactiveIcon} />
             ) : null}
             <Text
               variant={icon ? 'caption' : 'body'}
@@ -75,7 +76,7 @@ export function SegmentedControl<T extends string>({
               style={{
                 fontWeight: '600',
                 ...(icon ? { marginTop: space[1] } : null),
-                ...(active ? { color: colors.white } : null),
+                ...(active ? { color: t.accentOn } : null),
               }}
             >
               {label}
