@@ -14,6 +14,10 @@ export * from './hooks/useIsDark';
 export * from './hooks/useTabBarPadding';
 export * from './hooks/useAudioMixingStore';
 export * from './hooks/useHaptic';
+// Offline/media primitives (lifted from the apps' duplicated subsystem)
+export * from './hooks/mediaFiles';
+export * from './hooks/prefetchPolicy';
+export * from './hooks/useDownloadProgress';
 
 // Primitives
 export * from './primitives/Pressable';
