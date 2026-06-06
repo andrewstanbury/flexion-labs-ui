@@ -2,6 +2,12 @@
 // Minimal mocks so primitives render in jest-node (mirrors the apps' setup).
 jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
 
+// AsyncStorage has no native module under jest — use the package's official
+// in-memory mock so anything touching useThemeStore (persisted preference) runs.
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
+);
+
 jest.mock('@expo/vector-icons', () => {
   const React = require('react');
   const { Text } = require('react-native');

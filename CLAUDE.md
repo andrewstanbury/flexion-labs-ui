@@ -152,7 +152,12 @@ The two schemes diverge **by design** (v0.6.0): light mode is pastel pink
 (`blossom` ramp), dark mode is sage green. See `tokens.ts` `semantic.light` /
 `semantic.dark` and the `accent*` roles (`accent`, `accentSurface`, `accentOn`,
 `accentBorder`, `accentEdge`) — filled accent surfaces carry a readable
-`accentOn` foreground (dark plum on pink, white on green).
+`accentOn` foreground (dark plum on pink, white on green). Characterization
+tests in `UIProvider.tsx` / `hooks/useIsDark.ts` `__tests__/` pin the resolution
+behavior; update them if you change either path.
+
+See [`docs/theme.md`](./docs/theme.md) for the full breakdown (truth table + how
+the two paths are bridged).
 
 ## NativeWind note
 
