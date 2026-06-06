@@ -102,9 +102,9 @@ export const semantic = {
     // a pale pastel face with readable dark-plum content on top.
     accentSurface:    colors.blossom[300],
     accentOn:         colors.blossom[800],
-    // Gentle border/edge (v0.7.0): the earlier 600/700 made the raised button
-    // read too strong against the pale face. Keep the 3D subtle.
-    accentBorder:     colors.blossom[400],
+    // Gentle, UNIFIED border + depression edge (v0.7.1): the raised button's
+    // outline and its 3D base use the same soft pink so they read as one piece.
+    accentBorder:     colors.blossom[500],
     accentEdge:       colors.blossom[500],
     energy:           colors.coral[500],
     energyStrong:     colors.coral[600],
