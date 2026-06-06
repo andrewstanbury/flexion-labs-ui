@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { ActivityIndicator, Pressable, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import { controlHeight, radius, space, colors as palette } from '../tokens';
+import { controlHeight, radius, space } from '../tokens';
 import { useTheme } from '../UIProvider';
 import { Text } from './Text';
 
@@ -34,7 +34,7 @@ function useVariantStyle(variant: Variant) {
   const t = useTheme();
   switch (variant) {
     case 'primary':
-      return { bg: t.accent, fg: palette.white, border: palette.sage[600], bottomEdge: palette.sage[700] };
+      return { bg: t.accentSurface, fg: t.accentOn, border: t.accentBorder, bottomEdge: t.accentEdge };
     case 'secondary':
       return { bg: t.surfaceElevated, fg: t.textPrimary, border: t.border, bottomEdge: t.border };
     case 'ghost':
@@ -139,11 +139,12 @@ function ButtonRoot({
             <Text
               variant="button"
               color={variant === 'primary' ? 'inverse' : variant === 'destructive' ? 'danger' : 'primary'}
-              // Primary text is forced white even when the resolved `inverse`
-              // token doesn't match it (light surface).
+              // Primary text uses the accent's on-color token (readable on the
+              // accent face: white on dark-mode green, dark plum on the
+              // light-mode pastel pink) rather than a forced literal.
               style={[
                 { textTransform: 'uppercase', letterSpacing: 0.8 },
-                variant === 'primary' ? { color: palette.white } : null,
+                variant === 'primary' ? { color: v.fg } : null,
               ]}
             >
               {children}

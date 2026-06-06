@@ -45,6 +45,22 @@ export const colors = {
     600: '#E0532F',
     700: '#B83F20',
   },
+  // Pastel pink — light-mode primary/CTA + accents. Soft, rehab-friendly.
+  // Button faces use the pale 300; small accents (active tab, ring, toggle)
+  // use the more saturated 500 so they stay legible on cream/white; 800 is
+  // the readable text color on a pastel-pink fill.
+  blossom: {
+    50:  '#FFF2F6',
+    100: '#FCE3EC',
+    200: '#F8CEDD',
+    300: '#F3B2C8',
+    400: '#EB91AE',
+    500: '#E27499',
+    600: '#C95B80',
+    700: '#A24766',
+    800: '#793351',
+    900: '#4C1F33',
+  },
   // Red ramp for destructive actions, error states, validation messages.
   danger: {
     50:  '#FEF2F2',
@@ -69,6 +85,7 @@ export const colors = {
 // the raw palette, so the day we re-skin we change one mapping not 200
 // references. Each role resolves at theme-resolution time (see `theme()`).
 export const semantic = {
+  // Light mode: warm beige surfaces with a pastel-pink primary/accent.
   light: {
     surface:          colors.sand[50],
     surfaceElevated:  colors.white,
@@ -77,14 +94,21 @@ export const semantic = {
     textPrimary:      colors.sand[900],
     textSecondary:    colors.sand[700],
     textMuted:        colors.sand[500],
-    accent:           colors.sage[500],
-    accentStrong:     colors.sage[600],
-    accentMuted:      colors.sage[100],
+    accent:           colors.blossom[500],
+    accentStrong:     colors.blossom[600],
+    accentMuted:      colors.blossom[100],
+    // Filled accent surfaces (e.g. the primary Button face, selected segment):
+    // a pale pastel face with readable dark-plum content on top.
+    accentSurface:    colors.blossom[300],
+    accentOn:         colors.blossom[800],
+    accentBorder:     colors.blossom[600],
+    accentEdge:       colors.blossom[700],
     energy:           colors.coral[500],
     energyStrong:     colors.coral[600],
     danger:           colors.danger[600],
     dangerMuted:      colors.danger[100],
   },
+  // Dark mode: sage-green palette with green as the primary/accent.
   dark: {
     surface:          colors.sand[900],
     surfaceElevated:  colors.sand[800],
@@ -96,6 +120,11 @@ export const semantic = {
     accent:           colors.sage[400],
     accentStrong:     colors.sage[300],
     accentMuted:      colors.sage[800],
+    // Green fill with white content on top (the established dark-mode look).
+    accentSurface:    colors.sage[400],
+    accentOn:         colors.white,
+    accentBorder:     colors.sage[600],
+    accentEdge:       colors.sage[700],
     energy:           colors.coral[500],
     energyStrong:     colors.coral[600],
     danger:           colors.danger[400],

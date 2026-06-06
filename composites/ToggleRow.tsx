@@ -1,7 +1,7 @@
 import { View, Switch, type StyleProp, type ViewStyle } from 'react-native';
 import type { ReactNode } from 'react';
 import { colors, layout, space } from '../tokens';
-import { useScheme } from '../UIProvider';
+import { useScheme, useTheme } from '../UIProvider';
 import { Text } from '../primitives/Text';
 
 // ToggleRow — a labelled on/off setting: optional left icon, a title +
@@ -27,6 +27,7 @@ export function ToggleRow({
   style,
 }: ToggleRowProps) {
   const scheme = useScheme();
+  const t = useTheme();
   const trackOff = scheme === 'dark' ? colors.sand[800] : colors.sand[200];
   return (
     <View
@@ -47,7 +48,7 @@ export function ToggleRow({
       <Switch
         value={value}
         onValueChange={onValueChange}
-        trackColor={{ false: trackOff, true: colors.sage[500] }}
+        trackColor={{ false: trackOff, true: t.accent }}
         thumbColor={colors.white}
         accessibilityLabel={title}
       />
