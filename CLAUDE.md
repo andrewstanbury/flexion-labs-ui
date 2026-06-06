@@ -150,9 +150,13 @@ classes go dark but token colors stay light).
 is user-visible, so it is deferred for owner review. The intended single fix:
 each app wraps its tree in
 `<UIProvider scheme={useIsDark() ? 'dark' : 'light'}>` so `useTheme()` token
-colors follow the same persisted preference as the `dark:` classes. There is a
-characterization test pinning the current (divergent) behavior; if you change
-either path, update that test and coordinate the app-side wrapping.
+colors follow the same persisted preference as the `dark:` classes.
+Characterization tests (`UIProvider.tsx` and `hooks/useIsDark.ts` `__tests__/`)
+pin the current (divergent) behavior; if you change either path, update those
+tests and coordinate the app-side wrapping.
+
+See [`docs/theme.md`](./docs/theme.md) for the full breakdown (truth table +
+the intended fix).
 
 ## NativeWind note
 
