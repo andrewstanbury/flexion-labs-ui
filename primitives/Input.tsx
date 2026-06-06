@@ -131,8 +131,48 @@ function CodeImpl({
   );
 }
 
+// Multiline text area (notes, cues, descriptions). Unlike the single-line
+// variants this grows with its content from a comfortable floor, and the text
+// sits at the TOP of the box (not vertically centered) so it reads like a real
+// textarea. Use this instead of `<Input.Text multiline />`, which crams the
+// text into the fixed single-line height.
+function AreaImpl({ invalid, containerStyle, ...rest }: InputProps) {
+  const t = useTheme();
+  return (
+    <View
+      style={[
+        {
+          minHeight: 104,
+          backgroundColor: t.surfaceElevated,
+          borderColor: invalid ? t.danger : t.border,
+          borderWidth: 1,
+          borderRadius: radius.field,
+          paddingHorizontal: space[4],
+          paddingVertical: space[3],
+        },
+        containerStyle,
+      ]}
+    >
+      <RNTextInput
+        {...rest}
+        multiline
+        textAlignVertical="top"
+        placeholderTextColor={t.textMuted}
+        style={{
+          minHeight: 76,
+          color: t.textPrimary,
+          fontSize: typography.body.fontSize,
+          lineHeight: typography.body.lineHeight,
+          fontWeight: typography.body.fontWeight,
+        }}
+      />
+    </View>
+  );
+}
+
 export const Input = Object.assign(TextInputImpl, {
   Text:     TextInputImpl,
   Password: PasswordImpl,
   Code:     CodeImpl,
+  Area:     AreaImpl,
 });
