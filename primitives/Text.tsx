@@ -1,6 +1,13 @@
 import { Text as RNText, type TextProps, type StyleProp, type TextStyle } from 'react-native';
 import { typography } from '../tokens';
-import { useTheme, useFontScale } from '../UIProvider';
+import { useTheme } from '../UIProvider';
+
+// Text follows the phone's native text-size (OS Dynamic Type) via RN's default
+// `allowFontScaling`. We cap how far it can grow so large accessibility sizes
+// don't break tight layouts. (v0.7.0 dropped the in-app FontScaleProvider
+// multiplier in favour of the OS setting; FontScaleProvider/useFontScale remain
+// exported as deprecated no-ops for back-compat.)
+const MAX_FONT_SCALE = 1.5;
 
 // Type-scale primitive. Every variant resolves color, fontSize, lineHeight,
 // and fontWeight from tokens. Callers pass an optional `style` for layout
@@ -45,16 +52,16 @@ function TextRoot({
   ...rest
 }: TextVariantProps) {
   const color = useColor(role);
-  const scale = useFontScale();
   const t = typography[variant];
   return (
     <RNText
+      maxFontSizeMultiplier={MAX_FONT_SCALE}
       {...rest}
       style={[
         {
           color,
-          fontSize: t.fontSize * scale,
-          lineHeight: t.lineHeight * scale,
+          fontSize: t.fontSize,
+          lineHeight: t.lineHeight,
           fontWeight: t.fontWeight,
         },
         style,
