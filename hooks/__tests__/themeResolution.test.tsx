@@ -10,12 +10,14 @@ function setPreference(theme: 'system' | 'dark' | 'light') {
   useThemeStore.setState({ theme });
 }
 
-// Characterization tests for the TWO independent dark-mode resolution paths.
-// These PIN the current (divergent) behavior — see docs/theme.md. They are NOT
-// asserting the desired end state: today the apps don't wrap their tree in
-// <UIProvider scheme={...}>, so primitive token colors (useScheme/useTheme)
-// follow the OS while NativeWind `dark:` classes follow the persisted store
-// (useIsDark). If a future change collapses these two paths, update this file.
+// Characterization tests for the TWO independent dark-mode resolution paths,
+// exercised in ISOLATION (no <UIProvider scheme> wrapper) — see docs/theme.md.
+// They PIN the package's unwrapped behavior: useScheme/useTheme (token colors)
+// follow the OS, while useIsDark (NativeWind `dark:` classes) follows the
+// persisted store, so they disagree under a forced preference. This is exactly
+// what the app-side wrapper guards against: as of v0.6.0 both apps wrap their
+// tree in <UIProvider scheme={useIsDark() ? 'dark' : 'light'}>, collapsing the
+// two paths. If you change either path or remove that wrapper, update this file.
 
 function mockOS(scheme: 'light' | 'dark') {
   return jest.spyOn(RN, 'useColorScheme').mockReturnValue(scheme);
@@ -65,8 +67,8 @@ describe('Path 1 — useScheme (OS-driven, no UIProvider wrapper)', () => {
   });
 });
 
-describe('The divergence (the bug this pins)', () => {
-  it('useIsDark and useScheme disagree when the preference overrides the OS', () => {
+describe('Why the app-side UIProvider wrapper is required', () => {
+  it('useIsDark and useScheme disagree (unwrapped) when the preference overrides the OS', () => {
     mockOS('light');
     setPreference('dark');
 

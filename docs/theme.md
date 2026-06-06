@@ -1,15 +1,16 @@
 # Theming: the two dark-mode resolution paths
 
 > This is the long form of the "Theming" section in
-> [`../CLAUDE.md`](../CLAUDE.md). It documents a **latent divergence** between
-> two independent dark-mode resolution paths. Read it before changing anything
-> theming-related — and do not "fix" the divergence inside this repo alone (see
-> [Intended fix](#intended-fix-deferred)).
+> [`../CLAUDE.md`](../CLAUDE.md). It documents the **two independent dark-mode
+> resolution paths** in this package and how the consuming apps bridge them
+> (shipped in v0.6.0). Read it before changing anything theming-related — the
+> app-side `<UIProvider scheme>` wrapper described below is load-bearing.
 
 ## The two paths
 
-Dark mode is currently resolved **two different ways** in this package, and they
-do not talk to each other.
+Dark mode is resolved **two different ways** in this package. On their own they
+do not talk to each other; the apps bridge them at the root (see
+[The fix](#the-fix-shipped-in-v060)).
 
 ### Path 1 — `UIProvider` → `useScheme()` → `useTheme()` (OS-driven)
 
@@ -23,9 +24,11 @@ do not talk to each other.
 - **Primitive token colors** (the `StyleSheet`-based colors in `Button`, `Card`,
   `Text`, etc.) flow through this path.
 
-Crucially: **neither consuming app currently renders a
-`<UIProvider scheme={...}>` wrapper**, so in practice this path follows the OS
-color scheme, full stop.
+In isolation (no `<UIProvider scheme>` wrapper) this path follows the OS color
+scheme. **As of v0.6.0 both apps wrap their tree in
+`<UIProvider scheme={useIsDark() ? 'dark' : 'light'}>`** (see
+[The fix](#the-fix-shipped-in-v060)), so in the running apps this path follows
+the persisted preference, not the OS.
 
 ### Path 2 — `useThemeStore` → `useIsDark()` (preference-driven)
 
@@ -38,28 +41,29 @@ color scheme, full stop.
 - **NativeWind `dark:` utility classes** are driven from this path (the apps set
   NativeWind's color scheme from the store).
 
-## The divergence
+## The divergence (what the wrapper prevents)
 
-Because the apps don't wrap their tree in `<UIProvider scheme={...}>`:
+**Without** an app-side `<UIProvider scheme={...}>` wrapper, the two paths
+disagree whenever the user forces a scheme against their OS:
 
-| User preference | OS scheme | NativeWind `dark:` (path 2) | Token colors (path 1) | Agree? |
-| --------------- | --------- | --------------------------- | --------------------- | ------ |
-| `system`        | dark      | dark                        | dark                  | yes    |
-| `system`        | light     | light                       | light                 | yes    |
-| `dark` (forced) | light     | **dark**                    | **light**             | **no** |
-| `light` (forced)| dark      | **light**                   | **dark**              | **no** |
+| User preference | OS scheme | NativeWind `dark:` (path 2) | Token colors (path 1, unwrapped) | Agree? |
+| --------------- | --------- | --------------------------- | -------------------------------- | ------ |
+| `system`        | dark      | dark                        | dark                             | yes    |
+| `system`        | light     | light                       | light                            | yes    |
+| `dark` (forced) | light     | **dark**                    | **light**                        | **no** |
+| `light` (forced)| dark      | **light**                   | **dark**                         | **no** |
 
-So a user who forces dark mode while their OS is in light mode sees NativeWind
-`dark:` classes go dark while primitive token colors stay light (and vice
-versa). The two paths only agree when the preference is `system`.
+A user who forced dark mode while their OS was light would see NativeWind `dark:`
+classes go dark while primitive token colors stayed light. This is exactly the
+state the v0.6.0 wrapper eliminates — the table above is the *unwrapped* package
+behavior (still what the characterization tests pin), not what the running apps
+do.
 
-## Intended fix (deferred)
+## The fix (shipped in v0.6.0)
 
-The real fix spans **both apps** and is **user-visible**, so it is **deferred
-for owner review** — do not land it from this repo alone.
-
-Each app should wrap its tree so the provider scheme follows the **persisted
-preference**, not the OS:
+Each app wraps its tree so the provider scheme follows the **persisted
+preference**, not the OS. Both `flexion-labs-client` and `flexion-labs-practitioner`
+do this in `app/_layout.tsx`:
 
 ```tsx
 import { UIProvider, useIsDark } from '@flexion-labs/ui';
@@ -71,12 +75,14 @@ function ThemedRoot({ children }: { children: React.ReactNode }) {
 ```
 
 That makes `useTheme()` token colors follow the same source of truth as the
-NativeWind `dark:` classes, collapsing the two paths into one.
+NativeWind `dark:` classes, collapsing the two paths into one. **Keep the wrapper
+in place** — removing it from either app reintroduces the divergence above.
 
 ## Pinned behavior
 
-`UIProvider.tsx` and `hooks/useIsDark.ts` each have characterization tests
-(`__tests__/`) asserting the **current** behavior — including that the two paths
-resolve independently. They exist so a future agent changing either path sees
-the intent and is forced to update the pin deliberately rather than by accident.
-If you implement the fix above, update those tests.
+`hooks/__tests__/themeResolution.test.tsx` is a characterization test asserting
+the package's **in-isolation** path behavior (no `UIProvider` wrapper): path 1
+follows the OS, path 2 follows the persisted store, and they disagree under a
+forced preference. It pins *why the app-side wrapper is required* — so a future
+agent changing either path, or removing the wrapper, sees the intent and updates
+the pin deliberately rather than by accident.
