@@ -12,10 +12,16 @@ Both apps consume this as a git-tag dependency:
 ## What's in here
 
 - `tokens.ts` — colors, spacing, radius, typography, the resolved `theme(scheme)`.
-- `UIProvider.tsx` — `useScheme` / `useTheme` (colors), `useButtonShape`, and `FontScaleProvider` / `useFontScale` (text scaling).
+- `UIProvider.tsx` — `useScheme` / `useTheme` (colors) and `FontScaleProvider` / `useFontScale` (text scaling).
+- `hooks/` — `useThemeStore` (persisted light/dark/system preference), `useIsDark`.
+- `lib/` — `formatBytes`, `appLockLogic`.
 - `primitives/` — `Text`, `Button`, `Input`, `Card`, `Icon`, `Pressable`, `Screen`, `Stack`.
-- `composites/` — `SegmentedControl`, `ToggleRow`, `ListItem`, `SectionHeader`, `FormField`, `EmptyState`, `StatusScreen`, `AuthScreenShell`.
+- `composites/` — `SegmentedControl`, `ToggleRow`, `ListItem`, `SectionHeader`, `FormField`, `EmptyState`, `StatusScreen`, `AuthScreenShell`, `StorageBar`, `OfflineBanner`.
 - `shell/` — `TabBar`, `Header`, `BackButton`, `Modal`, `KeyboardScreen`.
+
+> Agents: read [`CLAUDE.md`](./CLAUDE.md) first — it captures the cross-repo
+> release contract and the setup pitfalls (git-tag consumption, the
+> `node_modules` symlink, the no-`files`-whitelist rule).
 
 ## Theming
 
