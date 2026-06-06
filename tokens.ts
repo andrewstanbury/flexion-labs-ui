@@ -46,20 +46,21 @@ export const colors = {
     700: '#B83F20',
   },
   // Pastel pink — light-mode primary/CTA + accents. Soft, rehab-friendly.
-  // Button faces use the pale 300; small accents (active tab, ring, toggle)
-  // use the more saturated 500 so they stay legible on cream/white; 800 is
-  // the readable text color on a pastel-pink fill.
+  // Softened in v0.7.0 (the earlier ramp read too vibrant against the cream
+  // surfaces). Button faces use the pale 300; small accents (active tab, ring,
+  // toggle) use 500 so they stay legible on cream/white; 800 is the readable
+  // text color on a pastel-pink fill.
   blossom: {
-    50:  '#FFF2F6',
-    100: '#FCE3EC',
-    200: '#F8CEDD',
-    300: '#F3B2C8',
-    400: '#EB91AE',
-    500: '#E27499',
-    600: '#C95B80',
-    700: '#A24766',
-    800: '#793351',
-    900: '#4C1F33',
+    50:  '#FFF6FA',
+    100: '#FDECF3',
+    200: '#FBE0EA',
+    300: '#F9D6E1',
+    400: '#EFBED0',
+    500: '#E892AE',
+    600: '#CC7993',
+    700: '#A85F7B',
+    800: '#7C3D55',
+    900: '#4E2536',
   },
   // Red ramp for destructive actions, error states, validation messages.
   danger: {
@@ -101,8 +102,10 @@ export const semantic = {
     // a pale pastel face with readable dark-plum content on top.
     accentSurface:    colors.blossom[300],
     accentOn:         colors.blossom[800],
-    accentBorder:     colors.blossom[600],
-    accentEdge:       colors.blossom[700],
+    // Gentle border/edge (v0.7.0): the earlier 600/700 made the raised button
+    // read too strong against the pale face. Keep the 3D subtle.
+    accentBorder:     colors.blossom[400],
+    accentEdge:       colors.blossom[500],
     energy:           colors.coral[500],
     energyStrong:     colors.coral[600],
     danger:           colors.danger[600],
