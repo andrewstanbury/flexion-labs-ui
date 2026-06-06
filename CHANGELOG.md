@@ -3,6 +3,13 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.7.6
+- Begin consolidating the apps' duplicated offline/media subsystem: lift the
+  import-light, logic-identical leaf primitives — `mediaFilesFor` (+ `MediaFile`
+  type), `canPrefetch`, `useDownloadProgress`. (The heavier, diverged cluster —
+  `mediaCache`, `useMediaUri`, the downloaders/stores — is entangled with the
+  per-app `packages/api` and is a later phase.)
+
 ## v0.7.5
 - Lift `useAudioMixingStore` (the "don't pause background music" preference, identical
   in both apps) into the package; both apps now re-export it.
