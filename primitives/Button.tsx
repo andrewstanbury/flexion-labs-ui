@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import { cloneElement, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { controlHeight, radius, space } from '../tokens';
@@ -51,6 +51,13 @@ function sizeStyle(size: Size) {
     case 'md': return { height: controlHeight.md, paddingH: space[5], radius: radius.md };
     case 'lg': return { height: controlHeight.lg, paddingH: space[6], radius: radius.lg };
   }
+}
+
+// Tint a left/right icon to match the button's text color (`v.fg`) so the icon
+// and label are always the same color, whatever color the caller gave the icon.
+// Icons here are Ionicons / the design-system Icon, which take a `color` prop.
+function tintIcon(node: ReactNode, color: string): ReactNode {
+  return isValidElement<{ color?: string }>(node) ? cloneElement(node, { color }) : node;
 }
 
 function ButtonRoot({
@@ -135,7 +142,7 @@ function ButtonRoot({
           <ActivityIndicator color={v.fg} size="small" />
         ) : (
           <>
-            {leftIcon}
+            {tintIcon(leftIcon, v.fg)}
             <Text
               variant="button"
               color={variant === 'primary' ? 'inverse' : variant === 'destructive' ? 'danger' : 'primary'}
@@ -149,7 +156,7 @@ function ButtonRoot({
             >
               {children}
             </Text>
-            {rightIcon}
+            {tintIcon(rightIcon, v.fg)}
           </>
         )}
       </Animated.View>
