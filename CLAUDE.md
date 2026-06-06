@@ -21,7 +21,7 @@ artifact; do not add a compile/dist step.
 Both apps consume this package as a **git-tag dependency**, e.g.:
 
 ```json
-"@flexion-labs/ui": "github:andrewstanbury/flexion-labs-ui#v0.5.0"
+"@flexion-labs/ui": "github:andrewstanbury/flexion-labs-ui#v0.6.0"
 ```
 
 Consequences:
@@ -34,7 +34,7 @@ Consequences:
 - App code must import from the package root (`@flexion-labs/ui`), never from a
   deep path inside the package.
 - There is **no CHANGELOG.** Release history lives in **git tags + commit
-  messages** (`git tag`, `git log`). Current tags: v0.1.0 … v0.5.0.
+  messages** (`git tag`, `git log`). Current tags: v0.1.0 … v0.6.0.
 
 ### Current public export surface (the contract)
 
@@ -128,31 +128,31 @@ Silent failure modes to watch for:
 - Renaming/removing an export and only updating one app → the other app breaks
   at its next install with no warning from this repo.
 
-## Theming — two resolution paths (latent divergence)
+## Theming — two resolution paths, now bridged at the app layer
 
-There are currently **two independent ways dark mode is resolved**, and they do
-not talk to each other:
+Dark mode is resolved by **two paths** in this package:
 
 1. **`UIProvider` / `useScheme()` / `useTheme()`** (`UIProvider.tsx`) — resolves
-   the scheme from the **OS** via `useColorScheme()`, unless an app wraps its
-   tree in `<UIProvider scheme=...>` (neither app currently does). Primitive
-   **token colors** (`StyleSheet`-based) come from this path.
+   the scheme from a `<UIProvider scheme=...>` prop if present, else the **OS**
+   via `useColorScheme()`. Primitive **token colors** (`StyleSheet`-based) come
+   from this path.
 2. **`useIsDark()` + `useThemeStore`** (`hooks/`) — resolves dark mode from the
    **persisted user preference** (`useThemeStore`, AsyncStorage:
    light/dark/system). NativeWind `dark:` classes are driven from this path.
 
-Because neither app wraps its tree in `<UIProvider scheme={...}>`, **primitive
-token colors follow the OS while NativeWind `dark:` classes follow the persisted
-store — they can disagree** (e.g. user forces dark, OS is light: `dark:`
-classes go dark but token colors stay light).
+These used to disagree (token colors followed the OS, `dark:` classes followed
+the store). **As of v0.6.0 both apps bridge them**: each wraps its tree in
+`<UIProvider scheme={useIsDark() ? 'dark' : 'light'}>` (see `app/_layout.tsx` in
+flexion-labs-client / flexion-labs-practitioner), so `useTheme()` token colors
+and `dark:` classes both follow the persisted preference. **Keep that wrapper in
+place** — removing it reintroduces the OS-vs-store divergence. A characterization
+test pins the resolution behavior; update it if you change either path.
 
-**Do not "fix" this inside this repo alone** — the real fix spans both apps and
-is user-visible, so it is deferred for owner review. The intended single fix:
-each app wraps its tree in
-`<UIProvider scheme={useIsDark() ? 'dark' : 'light'}>` so `useTheme()` token
-colors follow the same persisted preference as the `dark:` classes. There is a
-characterization test pinning the current (divergent) behavior; if you change
-either path, update that test and coordinate the app-side wrapping.
+The two schemes diverge **by design** (v0.6.0): light mode is pastel pink
+(`blossom` ramp), dark mode is sage green. See `tokens.ts` `semantic.light` /
+`semantic.dark` and the `accent*` roles (`accent`, `accentSurface`, `accentOn`,
+`accentBorder`, `accentEdge`) — filled accent surfaces carry a readable
+`accentOn` foreground (dark plum on pink, white on green).
 
 ## NativeWind note
 
