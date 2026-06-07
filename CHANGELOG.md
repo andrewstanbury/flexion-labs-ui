@@ -3,6 +3,16 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.8.0
+- Offline consolidation Phase 3 (foundation): lift the on-disk media cache layer
+  — `mediaCache` (localPath / isFileCached / downloadToCache / cleanupCache /
+  evictExcept / isExerciseCached / cacheSizeBytes / clearCache /
+  cacheSizeForExercises / clearExercises) + the `mediaFileExerciseId` filename
+  helper, with `MediaFile` sourced from the lifted `mediaFiles`. Behavior-
+  preserving reconciliation (identical filename scheme + equivalent ID
+  extraction). Declares `expo-file-system` as a peerDependency. **Touches offline
+  caching — verify offline download/playback on device.**
+
 ## v0.7.6
 - Begin consolidating the apps' duplicated offline/media subsystem: lift the
   import-light, logic-identical leaf primitives — `mediaFilesFor` (+ `MediaFile`

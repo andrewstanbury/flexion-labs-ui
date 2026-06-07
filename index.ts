@@ -16,6 +16,8 @@ export * from './hooks/useAudioMixingStore';
 export * from './hooks/useHaptic';
 // Offline/media primitives (lifted from the apps' duplicated subsystem)
 export * from './hooks/mediaFiles';
+export * from './hooks/mediaFileName';
+export * from './hooks/mediaCache';
 export * from './hooks/prefetchPolicy';
 export * from './hooks/useDownloadProgress';
 
