@@ -3,6 +3,15 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.8.6
+- Fix the SyncStatusShell "double notch": Screen now drops its own top safe-area
+  pad when an ancestor (the shell) already consumed it (via TopInsetConsumedContext),
+  so the reserved top area is notch + the short bar — not notch×2. (The native
+  SafeAreaView can't see a JS inset override, hence the explicit flag.)
+- Lift useMediaUri into the design system (3-tier media resolution: local cache →
+  injected signed URL → direct fallback), including the URI-reset that prevents a
+  reused player/image from flashing the previous exercise's media.
+
 ## v0.8.5
 - Shrink the SyncStatusBar row further (24→20px) — closer to the icon height.
 
