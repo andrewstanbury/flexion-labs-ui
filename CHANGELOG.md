@@ -3,6 +3,11 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.8.2
+- Add `SyncStatusDot` — a persistent, tappable header indicator for offline-first
+  sync state (saved / syncing / offline + pending count). Pure presentation; each
+  app computes the state from its own queues + connectivity via a `useSyncStatus`.
+
 ## v0.8.1
 - Offline consolidation Phase 3b: lift `downloadMedia` (`runMediaDownloads`) and add
   `configureMediaApi({ fetchSignedUrl })` — apps inject their signed-URL fetcher at
