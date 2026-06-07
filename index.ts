@@ -18,6 +18,8 @@ export * from './hooks/useHaptic';
 export * from './hooks/mediaFiles';
 export * from './hooks/mediaFileName';
 export * from './hooks/mediaCache';
+export * from './hooks/mediaApi';
+export * from './hooks/downloadMedia';
 export * from './hooks/prefetchPolicy';
 export * from './hooks/useDownloadProgress';
 

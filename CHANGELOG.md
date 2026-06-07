@@ -3,6 +3,12 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.8.1
+- Offline consolidation Phase 3b: lift `downloadMedia` (`runMediaDownloads`) and add
+  `configureMediaApi({ fetchSignedUrl })` — apps inject their signed-URL fetcher at
+  startup (next to `configureApiClient`) so the media subsystem can live here without
+  depending on an app's `apiFetch`. (`useMediaUri` stays per-app for now.)
+
 ## v0.8.0
 - Offline consolidation Phase 3 (foundation): lift the on-disk media cache layer
   — `mediaCache` (localPath / isFileCached / downloadToCache / cleanupCache /
