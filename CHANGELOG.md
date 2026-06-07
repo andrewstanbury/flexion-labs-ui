@@ -3,6 +3,9 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.8.5
+- Shrink the SyncStatusBar row further (24→20px) — closer to the icon height.
+
 ## v0.8.4
 - Shrink the SyncStatusBar reserved row (34→24px) + dot icon (22→18px) — the
   dedicated top bar was too tall.
