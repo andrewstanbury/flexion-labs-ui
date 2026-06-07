@@ -21,7 +21,7 @@ export function SyncStatusBar({
       accessibilityRole="button"
       accessibilityLabel={syncStatusLabel(state, pendingCount)}
       style={{
-        height: 34,
+        height: 24,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'flex-end',

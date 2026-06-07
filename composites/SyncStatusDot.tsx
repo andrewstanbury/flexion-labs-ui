@@ -36,7 +36,7 @@ export function SyncStatusIcon({ state }: { state: SyncState }) {
   return state === 'syncing' ? (
     <ActivityIndicator size="small" color={color} />
   ) : (
-    <Ionicons name={icon} size={22} color={color} />
+    <Ionicons name={icon} size={18} color={color} />
   );
 }
 
