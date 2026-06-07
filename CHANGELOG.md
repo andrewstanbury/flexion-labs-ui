@@ -3,6 +3,14 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.8.3
+- Give the sync indicator dedicated, non-overlapping space. Add `SyncStatusBar`
+  (a thin top row hosting the dot at the right, with an inline tap-to-reveal
+  detail) and `SyncStatusShell` (wraps the screen stack: pads the notch + bar
+  once, zeroes the top inset for descendants so screens don't double-pad). Both
+  apps now use the same top-right placement via the shell. `SyncStatusDot`
+  (popover variant) and `SyncStatusIcon`/`syncStatusLabel` exported too.
+
 ## v0.8.2
 - Add `SyncStatusDot` — a persistent, tappable header indicator for offline-first
   sync state (saved / syncing / offline + pending count). Pure presentation; each
