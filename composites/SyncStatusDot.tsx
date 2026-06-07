@@ -16,7 +16,8 @@ const STATUS: Record<SyncState, { color: string; icon: keyof typeof Ionicons.gly
   offline: { color: '#d97706', icon: 'cloud-offline-outline' },
 };
 
-function detailText(state: SyncState, pendingCount: number): string {
+// One-line, human description of the current sync state.
+export function syncStatusLabel(state: SyncState, pendingCount: number): string {
   const changes = `${pendingCount} change${pendingCount === 1 ? '' : 's'}`;
   if (state === 'offline') {
     return pendingCount > 0
@@ -29,10 +30,19 @@ function detailText(state: SyncState, pendingCount: number): string {
   return 'All changes saved';
 }
 
-// Persistent, tappable sync-status dot for the app header. Pure presentation —
-// the app computes `state` / `pendingCount` from its own offline queues +
-// connectivity (see each app's `useSyncStatus`) and mounts this globally. Tap
-// to reveal a one-line detail of what's happening.
+// Just the glyph (spinner while syncing). Shared by SyncStatusDot + SyncStatusBar.
+export function SyncStatusIcon({ state }: { state: SyncState }) {
+  const { color, icon } = STATUS[state];
+  return state === 'syncing' ? (
+    <ActivityIndicator size="small" color={color} />
+  ) : (
+    <Ionicons name={icon} size={22} color={color} />
+  );
+}
+
+// Standalone tappable sync-status dot with a popover (kept for ad-hoc use). The
+// app shell uses <SyncStatusBar> / <SyncStatusShell> instead, which give the dot
+// dedicated, non-overlapping space.
 export function SyncStatusDot({
   state,
   pendingCount = 0,
@@ -43,7 +53,7 @@ export function SyncStatusDot({
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const [open, setOpen] = useState(false);
-  const { color, icon } = STATUS[state];
+  const color = STATUS[state].color;
 
   return (
     <>
@@ -51,14 +61,10 @@ export function SyncStatusDot({
         onPress={() => setOpen(true)}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         accessibilityRole="button"
-        accessibilityLabel={detailText(state, pendingCount)}
+        accessibilityLabel={syncStatusLabel(state, pendingCount)}
         style={{ padding: 6 }}
       >
-        {state === 'syncing' ? (
-          <ActivityIndicator size="small" color={color} />
-        ) : (
-          <Ionicons name={icon} size={22} color={color} />
-        )}
+        <SyncStatusIcon state={state} />
       </Pressable>
 
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
@@ -86,7 +92,7 @@ export function SyncStatusDot({
             }}
           >
             <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
-            <Text.Body style={{ flexShrink: 1 }}>{detailText(state, pendingCount)}</Text.Body>
+            <Text.Body style={{ flexShrink: 1 }}>{syncStatusLabel(state, pendingCount)}</Text.Body>
           </View>
         </Pressable>
       </Modal>

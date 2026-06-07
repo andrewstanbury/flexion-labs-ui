@@ -45,6 +45,8 @@ export * from './composites/AuthScreenShell';
 export * from './composites/StorageBar';
 export * from './composites/OfflineBanner';
 export * from './composites/SyncStatusDot';
+export * from './composites/SyncStatusBar';
+export * from './composites/SyncStatusShell';
 
 // Shell
 export * from './shell/TabBar';
