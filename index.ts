@@ -20,6 +20,7 @@ export * from './hooks/mediaFileName';
 export * from './hooks/mediaCache';
 export * from './hooks/mediaApi';
 export * from './hooks/downloadMedia';
+export * from './hooks/useMediaUri';
 export * from './hooks/prefetchPolicy';
 export * from './hooks/useDownloadProgress';
 

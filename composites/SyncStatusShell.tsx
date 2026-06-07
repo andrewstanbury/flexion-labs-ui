@@ -1,13 +1,18 @@
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
-import { useSafeAreaInsets, SafeAreaInsetsContext } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SyncStatusBar } from './SyncStatusBar';
+import { TopInsetConsumedContext } from '../primitives/Screen';
 import type { SyncState } from './SyncStatusDot';
 
 // Wraps the app's screen stack with a dedicated top bar that hosts the sync dot,
-// so the (transparent) dot never overlaps a screen's own header actions. It pads
-// the safe-area notch + the bar ONCE, then zeroes the top inset for descendants
-// — so screens using <Screen edges={['top']}> don't double-pad below the bar.
+// so the (transparent) dot never overlaps a screen's own header actions.
+//
+// It pads the safe-area notch + the (short) bar ONCE, then tells descendants —
+// via TopInsetConsumedContext — that the top inset is already handled, so each
+// <Screen edges={['top']}> drops its own top pad and the notch isn't doubled.
+// (The native SafeAreaView can't see a JS inset override, hence the explicit
+// flag rather than overriding SafeAreaInsetsContext.)
 //
 // `show=false` (e.g. signed-out) renders children untouched, so screens keep
 // their normal safe-area behaviour with no reserved bar. `backgroundColor`
@@ -32,9 +37,9 @@ export function SyncStatusShell({
   return (
     <View style={{ flex: 1, paddingTop: insets.top, backgroundColor }}>
       <SyncStatusBar state={state} pendingCount={pendingCount} />
-      <SafeAreaInsetsContext.Provider value={{ ...insets, top: 0 }}>
+      <TopInsetConsumedContext.Provider value={true}>
         <View style={{ flex: 1 }}>{children}</View>
-      </SafeAreaInsetsContext.Provider>
+      </TopInsetConsumedContext.Provider>
     </View>
   );
 }
