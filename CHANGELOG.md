@@ -3,6 +3,9 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.8.7
+- Add an 8px margin below the SyncStatusBar so the sync icon has breathing room above screen content.
+
 ## v0.8.6
 - Fix the SyncStatusShell "double notch": Screen now drops its own top safe-area
   pad when an ancestor (the shell) already consumed it (via TopInsetConsumedContext),
