@@ -60,24 +60,26 @@ breaking release across both apps.
 > Note: `useButtonShape` was a v0.1.0 export removed in v0.2.0 — it is **not**
 > part of the surface. Do not reintroduce references to it.
 
-## The `node_modules` symlink (do not touch)
+## Dependencies — self-contained toolchain (owner-approved 2026-06-08)
 
-This repo has **no real dependencies of its own.** Its `node_modules` is a
-**symlink** to the client app's:
+This package carries its **own `devDependencies`** (the toolchain plus the peer
+deps it imports at type-check/test time), each **pinned to the exact version
+the apps resolve** for Expo SDK 54, plus a committed `package-lock.json`. So
+`npm ci && npm run verify` (tsc + eslint + jest) runs standalone — which is
+what lets CI work (see below).
 
-```
-node_modules -> ../flexion-labs-client/node_modules
-```
+Previously this repo had **no deps of its own** and its `node_modules` was a
+**symlink** to the client app's (`node_modules -> ../flexion-labs-client/node_modules`),
+borrowing that app's installed toolchain. That was deferred-for-owner-review;
+the owner chose self-containment on 2026-06-08, so the symlink model is retired.
 
-`npm run verify` (tsc + jest) works locally **only** because of this symlink —
-it borrows the consuming app's installed toolchain (react-native, jest-expo,
-nativewind, etc.). `package.json` lists only `peerDependencies`; there are no
-`devDependencies`.
-
-**Do not** replace/delete the symlink, add devDependencies, or `npm install`
-into this repo. Changing the dependency/install model has blast radius on both
-consuming apps and is deferred for owner review. If you think you need a dep
-here, stop and flag it.
+- These are `devDependencies`, so **consumers are unaffected** — npm does not
+  install a dependency's devDependencies. The public contract (`index.ts`,
+  `peerDependencies`) is unchanged.
+- **Keep the pins aligned with the apps.** If the apps bump Expo / React Native
+  / the toolchain, bump the matching pins here in the same wave, so this package
+  keeps type-checking and testing against the versions the apps actually run.
+  The versions here were taken from the client app's resolved tree, not guessed.
 
 ## The no-`files`-whitelist rule (do not reintroduce)
 
@@ -90,17 +92,16 @@ Why: an earlier `files` whitelist silently dropped `lib/` (it omitted
 later chore commit. **Do not add a `files` field back.** When you add a new
 top-level folder, it ships automatically — that's the intended behavior.
 
-## Verification — mandatory, there is no CI
+## Verification — mandatory
 
 ```bash
-npm run verify   # tsc --noEmit && jest
+npm run verify   # tsc --noEmit && eslint . && jest
 ```
 
-There is **no CI safety net** on this repo (see below for why a clean CI is
-non-trivial under the symlink/no-own-deps model). A bad commit/tag breaks BOTH
-apps. So `npm run verify` being green is a hard precondition for any commit you
-push and for cutting any release tag. Run it from the repo root so it picks up
-the symlinked toolchain.
+CI (`.github/workflows/ci.yml`) now runs type-check + lint + test on every PR
+and push to master — the safety net this repo previously lacked. A bad
+commit/tag still breaks BOTH apps, so `npm run verify` being green remains a
+hard precondition for any commit you push and for cutting any release tag.
 
 ## Releasing — the dance and its silent failure modes
 
@@ -108,7 +109,7 @@ npm **caches git dependencies by COMMIT**, not by tag name. So bumping/moving a
 tag is not enough — each consuming app must be forced to re-resolve, or it keeps
 running stale code with no error.
 
-1. `npm run verify` — must be green (no CI to catch you).
+1. `npm run verify` — must be green (CI runs it too, but don't push a tag on red).
 2. Bump `version` in `package.json`, commit.
 3. Tag and push: `git tag vX.Y.Z && git push origin master vX.Y.Z`.
 4. In **each** app, repoint the dep AND force a fresh resolve:
