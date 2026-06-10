@@ -7,6 +7,7 @@ export * from './UIProvider';
 // Utils
 export * from './lib/formatBytes';
 export * from './lib/appLockLogic';
+export * from './lib/secureKeyValueStorage';
 
 // Hooks
 export * from './hooks/useThemeStore';

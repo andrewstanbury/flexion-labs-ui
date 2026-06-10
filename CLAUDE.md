@@ -47,7 +47,9 @@ breaking release across both apps.
 - **Theme/provider** (`UIProvider.tsx`): `UIProvider`, `useScheme`, `useTheme`,
   `FontScaleProvider`, `useFontScale`.
 - **Utils** (`lib/`): `formatBytes`, `appLockLogic` (`shouldLockOnForeground`,
-  `isLockArmed`).
+  `isLockArmed`), `secureKeyValueStorage` (`createSecureKeyValueStorage`,
+  `toSafeKey`, `SecureBackend`/`KeyValueStore` types — encrypted-at-rest KV store
+  with an injected native backend; the apps wrap it with expo-secure-store).
 - **Hooks** (`hooks/`): `useThemeStore`, `useIsDark`, `useTabBarPadding`, `useAudioMixingStore`, `useHaptic`.
 - **Primitives** (`primitives/`): `Pressable`, `Text`, `Button`, `Input`,
   `Card`, `Icon`, `Screen`, `Stack`.
