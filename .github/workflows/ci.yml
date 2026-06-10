@@ -1,0 +1,29 @@
+name: ci
+
+# The shared design system ships raw TS source with no build step, and a bad
+# commit/tag breaks BOTH consuming apps with no compile error here to warn you.
+# This is that missing safety net: type-check, lint, and test on every PR and
+# push to master. Runs standalone now that the package carries its own pinned
+# devDependencies (pinned to match the apps' Expo 54 toolchain) instead of
+# borrowing the client app's node_modules via symlink.
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - name: Type-check
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Test
+        run: npm test
