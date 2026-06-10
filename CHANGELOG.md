@@ -3,6 +3,15 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.8.8
+- Add `createSecureKeyValueStorage` + `toSafeKey` (`lib/secureKeyValueStorage.ts`): a
+  framework-agnostic factory for an encrypted-at-rest key/value store, structurally
+  compatible with Amplify v6's `KeyValueStorageInterface`. The native secure store is
+  injected by the consumer (no `expo-secure-store` / `aws-amplify` dependency here).
+  Handles the ~2KB Android value cap (chunking) and the lack of an enumerate API
+  (key index for `clear()`). Lifted from the duplicate copies in client + practitioner;
+  each app now provides a thin wrapper that injects expo-secure-store.
+
 ## v0.8.7
 - Add an 8px margin below the SyncStatusBar so the sync icon has breathing room above screen content.
 
