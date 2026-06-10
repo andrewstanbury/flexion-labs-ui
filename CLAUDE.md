@@ -34,7 +34,7 @@ Consequences:
 - App code must import from the package root (`@flexion-labs/ui`), never from a
   deep path inside the package.
 - Release history is in [`CHANGELOG.md`](./CHANGELOG.md) (keep it updated on every
-  version bump) plus the git tags. Current tags: v0.1.0 … v0.7.5.
+  version bump) plus the git tags. Current tags: v0.1.0 … v0.8.7.
 
 ### Current public export surface (the contract)
 
