@@ -1,0 +1,23 @@
+# Dependabot configuration.
+#
+# Added 2026-06-10 to block AUTOMATIC major-version bumps of `expo`. This design
+# system's expo / Expo SDK toolchain pins must move in lockstep with the
+# consuming apps (currently SDK 54) — see CLAUDE.md "Dependencies". A Dependabot
+# PR tried to jump expo ~54 -> ~56 unprompted; this prevents that from recurring
+# while still allowing patch/minor and security fixes. Bump expo deliberately
+# (in the same wave as the apps), not via an automatic PR.
+#
+# open-pull-requests-limit: 0 keeps SCHEDULED version-update PRs off (this repo
+# had none before this file). GitHub security updates are NOT affected by this
+# limit and continue to run; the `ignore` rule below also applies to them, so a
+# major-version expo security bump is suppressed too.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    ignore:
+      - dependency-name: "expo"
+        update-types: ["version-update:semver-major"]
