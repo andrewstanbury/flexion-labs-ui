@@ -3,6 +3,19 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.8.9
+- Offline downloads become **disk-truth + device-wide**. Add
+  `listCachedExerciseIds()` to `mediaCache` (every exerciseId with playable
+  video/preview media on disk, thumbnails excluded) and a new persisted
+  `useDownloadLedger` (`hooks/useDownloadLedger.ts`): an exerciseId-keyed record
+  of downloaded media (name + flags) so the Manage Downloads screen can list and
+  delete EVERYTHING on disk — including media for programs that have since
+  changed or been removed — instead of only what the current programs reference.
+  `reconcile(cachedIds)` keeps the ledger honest against the disk. Dedup is
+  unchanged (the cache was already content-addressed by exerciseId — one file per
+  exercise, shared across programs). Apps stop auto-evicting on program change;
+  the size-cap LRU (`cleanupCache`) remains the only automatic eviction.
+
 ## v0.8.8
 - Add `createSecureKeyValueStorage` + `toSafeKey` (`lib/secureKeyValueStorage.ts`): a
   framework-agnostic factory for an encrypted-at-rest key/value store, structurally
