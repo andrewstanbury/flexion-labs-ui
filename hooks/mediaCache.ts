@@ -219,6 +219,30 @@ export function cacheSizeForExercises(exerciseIds: string[]): number {
   }
 }
 
+// Every exerciseId that currently has PLAYABLE media on disk (a video or
+// preview file) — the authoritative "what's downloaded" set, independent of any
+// program. Thumbnails are excluded: they cache incidentally just from browsing
+// lists and aren't user-initiated downloads. Powers a disk-truth Manage
+// Downloads list so downloaded media can never be orphaned (on disk but absent
+// from every program → invisible/undeletable).
+export function listCachedExerciseIds(): string[] {
+  if (WEB || !CACHE_DIR) return [];
+  try {
+    if (!CACHE_DIR.exists) return [];
+    const ids = new Set<string>();
+    for (const e of CACHE_DIR.list()) {
+      if (!(e instanceof File)) continue;
+      const name = e.uri.split('/').pop() ?? '';
+      if (!/-(?:video|preview)\.(?:mp4|gif)$/.test(name)) continue;
+      const id = mediaFileExerciseId(name);
+      if (id) ids.add(id);
+    }
+    return [...ids];
+  } catch {
+    return [];
+  }
+}
+
 // Delete cached media for a set of exerciseIds (one program's exercises).
 // Best-effort; shared exercises re-download on next view / prefetch.
 export function clearExercises(exerciseIds: string[]): void {

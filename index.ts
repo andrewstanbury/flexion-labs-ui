@@ -24,6 +24,7 @@ export * from './hooks/downloadMedia';
 export * from './hooks/useMediaUri';
 export * from './hooks/prefetchPolicy';
 export * from './hooks/useDownloadProgress';
+export * from './hooks/useDownloadLedger';
 
 // Primitives
 export * from './primitives/Pressable';
