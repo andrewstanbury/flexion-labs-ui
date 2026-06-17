@@ -1,3 +1,5 @@
 node_modules
 node_modules/
 *.tsbuildinfo
+# Python linter cache — leftover from a sibling repo; this is a Node/TS package.
+.ruff_cache/

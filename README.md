@@ -6,7 +6,7 @@ components, design tokens, and theme.
 Both apps consume this as a git-tag dependency (use the current tag):
 
 ```json
-"@flexion-labs/ui": "github:andrewstanbury/flexion-labs-ui#v0.8.7"
+"@flexion-labs/ui": "github:andrewstanbury/flexion-labs-ui#v0.8.9"
 ```
 
 ## What's in here
@@ -66,13 +66,13 @@ transpiles it. A bad tag breaks **both** apps, so:
 
 1. `npm run verify` (tsc + jest) — must be green.
 2. Bump `version` in `package.json`, commit.
-3. Tag and push: `git tag v0.3.2 && git push origin master v0.3.2`.
+3. Tag and push: `git tag vX.Y.Z && git push origin master vX.Y.Z`.
 4. In **each** app, bump the dep ref and force npm to re-resolve the git tag
    (npm caches it by commit):
    ```bash
-   npm pkg set "dependencies.@flexion-labs/ui=github:andrewstanbury/flexion-labs-ui#v0.3.2"
+   npm pkg set "dependencies.@flexion-labs/ui=github:andrewstanbury/flexion-labs-ui#vX.Y.Z"
    rm -rf node_modules/@flexion-labs/ui
-   npm install "@flexion-labs/ui@github:andrewstanbury/flexion-labs-ui#v0.3.2"
+   npm install "@flexion-labs/ui@github:andrewstanbury/flexion-labs-ui#vX.Y.Z"
    ```
 5. `npx tsc --noEmit && npx jest` in each app before merging.
 
