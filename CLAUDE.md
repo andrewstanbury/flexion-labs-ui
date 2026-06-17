@@ -34,7 +34,7 @@ Consequences:
 - App code must import from the package root (`@flexion-labs/ui`), never from a
   deep path inside the package.
 - Release history is in [`CHANGELOG.md`](./CHANGELOG.md) (keep it updated on every
-  version bump) plus the git tags. Current tags: v0.1.0 … v0.8.7.
+  version bump) plus the git tags. Current tags: v0.1.0 … v0.8.9.
 
 ### Current public export surface (the contract)
 
@@ -50,12 +50,17 @@ breaking release across both apps.
   `isLockArmed`), `secureKeyValueStorage` (`createSecureKeyValueStorage`,
   `toSafeKey`, `SecureBackend`/`KeyValueStore` types — encrypted-at-rest KV store
   with an injected native backend; the apps wrap it with expo-secure-store).
-- **Hooks** (`hooks/`): `useThemeStore`, `useIsDark`, `useTabBarPadding`, `useAudioMixingStore`, `useHaptic`.
+- **Hooks** (`hooks/`): `useThemeStore`, `useIsDark`, `useTabBarPadding`,
+  `useAudioMixingStore`, `useHaptic`, plus the offline-media subsystem
+  (`mediaFiles`, `mediaFileName`, `mediaCache`, `mediaApi`, `downloadMedia`,
+  `useMediaUri`, `prefetchPolicy`, `useDownloadProgress`, `useDownloadLedger`,
+  `listCachedExerciseIds`). See `index.ts` (authoritative) for the exact set.
 - **Primitives** (`primitives/`): `Pressable`, `Text`, `Button`, `Input`,
   `Card`, `Icon`, `Screen`, `Stack`.
 - **Composites** (`composites/`): `FormField`, `SectionHeader`, `ListItem`,
   `SegmentedControl`, `ToggleRow`, `EmptyState`, `StatusScreen`,
-  `AuthScreenShell`, `StorageBar`, `OfflineBanner`.
+  `AuthScreenShell`, `StorageBar`, `OfflineBanner`, `SyncStatusDot`,
+  `SyncStatusBar`, `SyncStatusShell`.
 - **Shell** (`shell/`): `TabBar`, `Header`, `BackButton`, `Modal`,
   `KeyboardScreen`.
 
