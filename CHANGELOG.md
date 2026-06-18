@@ -3,6 +3,14 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.8.10
+- `Input` (all variants: `Text`, `Password`, `Code`, `Area`) now focuses the
+  field when **anywhere in the bordered box is tapped**, not just the thin text
+  line. The container is a `Pressable` that focuses the inner `TextInput` on
+  press (it was a plain `View`, so its padding was dead space). The container is
+  `accessible={false}` so the `TextInput` stays the single accessibility node.
+  No public API change.
+
 ## v0.8.9
 - Offline downloads become **disk-truth + device-wide**. Add
   `listCachedExerciseIds()` to `mediaCache` (every exerciseId with playable

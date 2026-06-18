@@ -1,7 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   TextInput as RNTextInput,
-  View,
   type TextInputProps,
   type StyleProp,
   type ViewStyle,
@@ -18,8 +17,11 @@ export type InputProps = Omit<TextInputProps, 'style'> & {
 
 function TextInputImpl({ invalid, containerStyle, ...rest }: InputProps) {
   const t = useTheme();
+  const ref = useRef<RNTextInput>(null);
   return (
-    <View
+    <Pressable.Touch
+      accessible={false}
+      onPress={() => ref.current?.focus()}
       style={[
         {
           height: controlHeight.lg,
@@ -34,6 +36,7 @@ function TextInputImpl({ invalid, containerStyle, ...rest }: InputProps) {
       ]}
     >
       <RNTextInput
+        ref={ref}
         {...rest}
         placeholderTextColor={t.textMuted}
         style={{
@@ -42,15 +45,18 @@ function TextInputImpl({ invalid, containerStyle, ...rest }: InputProps) {
           fontWeight: typography.body.fontWeight,
         }}
       />
-    </View>
+    </Pressable.Touch>
   );
 }
 
 function PasswordImpl({ invalid, containerStyle, ...rest }: InputProps) {
   const t = useTheme();
   const [hidden, setHidden] = useState(true);
+  const ref = useRef<RNTextInput>(null);
   return (
-    <View
+    <Pressable.Touch
+      accessible={false}
+      onPress={() => ref.current?.focus()}
       style={[
         {
           height: controlHeight.lg,
@@ -66,6 +72,7 @@ function PasswordImpl({ invalid, containerStyle, ...rest }: InputProps) {
       ]}
     >
       <RNTextInput
+        ref={ref}
         {...rest}
         secureTextEntry={hidden}
         placeholderTextColor={t.textMuted}
@@ -86,7 +93,7 @@ function PasswordImpl({ invalid, containerStyle, ...rest }: InputProps) {
           color={t.textSecondary}
         />
       </Pressable.Touch>
-    </View>
+    </Pressable.Touch>
   );
 }
 
@@ -99,8 +106,11 @@ function CodeImpl({
   ...rest
 }: InputProps) {
   const t = useTheme();
+  const ref = useRef<RNTextInput>(null);
   return (
-    <View
+    <Pressable.Touch
+      accessible={false}
+      onPress={() => ref.current?.focus()}
       style={[
         {
           height: 60,
@@ -115,6 +125,7 @@ function CodeImpl({
       ]}
     >
       <RNTextInput
+        ref={ref}
         {...rest}
         keyboardType="number-pad"
         maxLength={maxLength}
@@ -127,7 +138,7 @@ function CodeImpl({
         }}
         placeholderTextColor={t.textMuted}
       />
-    </View>
+    </Pressable.Touch>
   );
 }
 
@@ -138,8 +149,11 @@ function CodeImpl({
 // text into the fixed single-line height.
 function AreaImpl({ invalid, containerStyle, ...rest }: InputProps) {
   const t = useTheme();
+  const ref = useRef<RNTextInput>(null);
   return (
-    <View
+    <Pressable.Touch
+      accessible={false}
+      onPress={() => ref.current?.focus()}
       style={[
         {
           minHeight: 104,
@@ -154,6 +168,7 @@ function AreaImpl({ invalid, containerStyle, ...rest }: InputProps) {
       ]}
     >
       <RNTextInput
+        ref={ref}
         {...rest}
         multiline
         textAlignVertical="top"
@@ -166,7 +181,7 @@ function AreaImpl({ invalid, containerStyle, ...rest }: InputProps) {
           fontWeight: typography.body.fontWeight,
         }}
       />
-    </View>
+    </Pressable.Touch>
   );
 }
 
