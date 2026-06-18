@@ -1,4 +1,5 @@
-import { Platform, KeyboardAvoidingView, ScrollView, View } from 'react-native';
+import { View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { layout, radius, space } from '../tokens';
 import { useTheme } from '../UIProvider';
 import { Screen } from '../primitives/Screen';
@@ -32,19 +33,18 @@ export function AuthScreenShell({
   const t = useTheme();
   return (
     <Screen padded={false}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      <KeyboardAwareScrollView
+        bottomOffset={24}
+        contentContainerStyle={{
+          flexGrow: 1,
+          justifyContent: 'center',
+          paddingHorizontal: layout.screenX,
+          paddingVertical: layout.screenY,
+        }}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        showsVerticalScrollIndicator={false}
       >
-        <ScrollView
-          contentContainerStyle={{
-            flexGrow: 1,
-            justifyContent: 'center',
-            paddingHorizontal: layout.screenX,
-            paddingVertical: layout.screenY,
-          }}
-          keyboardShouldPersistTaps="handled"
-        >
           {topAccessory ? <View style={{ marginBottom: space[6] }}>{topAccessory}</View> : null}
 
           <View style={{ alignItems: 'center', marginBottom: space[8] }}>
@@ -82,8 +82,7 @@ export function AuthScreenShell({
           <View style={{ gap: layout.gapMd }}>{children}</View>
 
           {footer ? <View style={{ marginTop: layout.gapXl }}>{footer}</View> : null}
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
     </Screen>
   );
 }
