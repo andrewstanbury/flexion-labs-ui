@@ -2,6 +2,12 @@
 // Minimal mocks so primitives render in jest-node (mirrors the apps' setup).
 jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
 
+// KeyboardScreen renders KeyboardAwareScrollView; the library ships a jest mock
+// that renders its components as plain Views (no native keyboard module).
+jest.mock('react-native-keyboard-controller', () =>
+  require('react-native-keyboard-controller/jest'),
+);
+
 // AsyncStorage has no native module under jest — use the package's official
 // in-memory mock so anything touching useThemeStore (persisted preference) runs.
 jest.mock('@react-native-async-storage/async-storage', () =>

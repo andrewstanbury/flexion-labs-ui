@@ -3,6 +3,19 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.8.11
+- `KeyboardScreen` is rebuilt on **react-native-keyboard-controller**'s
+  `KeyboardAwareScrollView` (apps already mount its `<KeyboardProvider>`), so the
+  **focused field is reliably scrolled clear of the keyboard on both iOS and
+  Android** — the bare RN `KeyboardAvoidingView` it used before was unreliable on
+  Android. Dismissal is consistent: tap a non-interactive area
+  (`keyboardShouldPersistTaps="handled"`) or swipe down on iOS
+  (`keyboardDismissMode="interactive"`). New optional `bottomOffset` prop (gap
+  kept above the keyboard). Same public props otherwise — additive. Adds
+  `react-native-keyboard-controller` as a peer dependency (both apps already have
+  it). Use `KeyboardScreen` for every form/input screen; for search-over-a-list
+  screens, prefer a sticky search header + list dismissal instead.
+
 ## v0.8.10
 - `Input` (all variants: `Text`, `Password`, `Code`, `Area`) now focuses the
   field when **anywhere in the bordered box is tapped**, not just the thin text
