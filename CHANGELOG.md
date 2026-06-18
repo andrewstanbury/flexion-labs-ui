@@ -3,6 +3,13 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.8.12
+- `AuthScreenShell` (Welcome / Sign-In) now uses the same keyboard-aware scroll
+  as `KeyboardScreen` (react-native-keyboard-controller) instead of the bare RN
+  `KeyboardAvoidingView` — so the focused field stays clear of the keyboard on
+  both platforms, with tap/swipe dismissal. Same props. Adds an AuthScreenShell
+  render test.
+
 ## v0.8.11
 - `KeyboardScreen` is rebuilt on **react-native-keyboard-controller**'s
   `KeyboardAwareScrollView` (apps already mount its `<KeyboardProvider>`), so the
