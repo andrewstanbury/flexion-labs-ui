@@ -3,6 +3,24 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.9.0
+- **Responsive navigation** — new `Sidebar` shell component, the wide-screen
+  (tablet / desktop web) counterpart to `TabBar`. It takes the **same**
+  `{ state, navigation, tabs }` props as `TabBar` (plus an optional `brand`
+  wordmark) so a layout can swap one for the other based on screen width with no
+  other changes. Renders a vertical rail that collapses to icons-only; the
+  Settings destination is pinned to the bottom, every other tab stacks under the
+  brand header in route order.
+- New `useIsWide(breakpoint?)` hook + `WIDE_BREAKPOINT` (768) — true when the
+  viewport is at least tablet-width. Reactive to rotation / window resize.
+- New `useSidebarStore` — persisted collapsed/expanded state for the rail
+  (default **collapsed**), mirroring `useThemeStore`. The toggle survives reloads.
+- `useTabBarPadding` now returns just the safe-area inset on wide screens (no
+  phantom bottom gap once navigation is a left rail).
+- All additive — no existing export changed. Wire-up in each app:
+  `tabBarPosition: isWide ? 'left' : 'bottom'` + render `<Sidebar>` when wide,
+  else `<TabBar>`.
+
 ## v0.8.12
 - `AuthScreenShell` (Welcome / Sign-In) now uses the same keyboard-aware scroll
   as `KeyboardScreen` (react-native-keyboard-controller) instead of the bare RN

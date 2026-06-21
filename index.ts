@@ -12,6 +12,8 @@ export * from './lib/secureKeyValueStorage';
 // Hooks
 export * from './hooks/useThemeStore';
 export * from './hooks/useIsDark';
+export * from './hooks/useIsWide';
+export * from './hooks/useSidebarStore';
 export * from './hooks/useTabBarPadding';
 export * from './hooks/useAudioMixingStore';
 export * from './hooks/useHaptic';
@@ -53,6 +55,7 @@ export * from './composites/SyncStatusShell';
 
 // Shell
 export * from './shell/TabBar';
+export * from './shell/Sidebar';
 export * from './shell/Header';
 export * from './shell/BackButton';
 export * from './shell/Modal';
