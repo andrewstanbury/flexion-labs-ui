@@ -3,6 +3,19 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.10.0
+- **Toasts** — new non-blocking status notifications. `useToast()` fires a
+  transient message from anywhere (`const toast = useToast(); toast('Invitation
+  sent', { variant: 'success' })`); `<ToastViewport />` is the visual host,
+  mounted once per app as an absolute overlay at the top (mirrors
+  `OfflineBanner`'s safe-area positioning, floats above it at `zIndex: 60`).
+  Floating-pill style, themed via `useTheme()` (green `accent` for success, red
+  `danger` for error, neutral for info), auto-dismisses (errors linger longer),
+  tap to dismiss, caps at 3 on screen. Backed by `useToastStore` — a
+  deliberately **non-persisted** zustand store (transient by nature), so no
+  provider wiring is needed. Replaces blocking `Alert.alert` popups for
+  single-message confirmations; multi-button confirm dialogs stay as `Alert`.
+
 ## v0.9.0
 - **Responsive navigation** — new `Sidebar` shell component, the wide-screen
   (tablet / desktop web) counterpart to `TabBar`. It takes the **same**

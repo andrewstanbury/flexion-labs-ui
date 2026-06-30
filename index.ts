@@ -17,6 +17,7 @@ export * from './hooks/useSidebarStore';
 export * from './hooks/useTabBarPadding';
 export * from './hooks/useAudioMixingStore';
 export * from './hooks/useHaptic';
+export * from './hooks/useToastStore';
 // Offline/media primitives (lifted from the apps' duplicated subsystem)
 export * from './hooks/mediaFiles';
 export * from './hooks/mediaFileName';
@@ -52,6 +53,7 @@ export * from './composites/OfflineBanner';
 export * from './composites/SyncStatusDot';
 export * from './composites/SyncStatusBar';
 export * from './composites/SyncStatusShell';
+export * from './composites/ToastViewport';
 
 // Shell
 export * from './shell/TabBar';
