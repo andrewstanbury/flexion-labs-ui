@@ -3,6 +3,16 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.11.0
+- **ListPicker** — a new composite for settings with many options. Where
+  `SegmentedControl` is a fixed row of pills (good for 2–3 options), `ListPicker`
+  is a single row showing the current selection that opens a bottom-sheet list of
+  all options (label + optional icon, the active one checked) — so it scales to
+  any number of choices. Same `options` / `value` / `onChange` shape as
+  `SegmentedControl` (a near drop-in), themed via `useTheme()` (light + dark),
+  accessible (button/selected roles, tap-outside-to-dismiss). Built for the
+  multi-language selector in both apps.
+
 ## v0.10.0
 - **Toasts** — new non-blocking status notifications. `useToast()` fires a
   transient message from anywhere (`const toast = useToast(); toast('Invitation
