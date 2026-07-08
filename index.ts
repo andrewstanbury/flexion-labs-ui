@@ -44,6 +44,7 @@ export * from './composites/FormField';
 export * from './composites/SectionHeader';
 export * from './composites/ListItem';
 export * from './composites/SegmentedControl';
+export * from './composites/ListPicker';
 export * from './composites/ToggleRow';
 export * from './composites/EmptyState';
 export * from './composites/StatusScreen';
