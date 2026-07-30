@@ -1,4 +1,4 @@
-// Unit test for the on-disk media cache. We mock `expo-file-system/next` with a
+// Unit test for the on-disk media cache. We mock `expo-file-system` with a
 // tiny in-memory FS backend so the real cache logic (size-cap LRU eviction,
 // disk-truth listing) runs in the fast node lane — same approach as the other
 // offline tests, which stub the FS layer rather than touch expo-file-system.
@@ -20,7 +20,7 @@ function seedFile(name: string, size: number, modificationTime: number) {
   mockFs.set(name, { name, size, modificationTime });
 }
 
-jest.mock('expo-file-system/next', () => {
+jest.mock('expo-file-system', () => {
   // The cache directory lives under Paths.cache; we ignore the parent path and
   // just track files by name in the shared map.
   class File {

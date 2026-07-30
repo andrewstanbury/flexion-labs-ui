@@ -1,12 +1,12 @@
 import { Platform } from 'react-native';
-import { File, Directory, Paths } from 'expo-file-system/next';
+import { File, Directory, Paths } from 'expo-file-system';
 import type { MediaFile } from './mediaFiles';
 import { mediaFileExerciseId } from './mediaFileName';
 
 // On-disk cache for exercise media (thumbnail/preview/video). Shared by both
 // apps' offline subsystem (lifted into the design system in v0.8.0). Pure
 // file-system layer — no API/auth dependency; callers pass already-signed URLs.
-// expo-file-system/next is not supported on web — all operations are no-ops there.
+// expo-file-system is not supported on web — all operations are no-ops there.
 
 const WEB = Platform.OS === 'web';
 
