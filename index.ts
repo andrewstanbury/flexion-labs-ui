@@ -6,6 +6,7 @@ export * from './UIProvider';
 
 // Utils
 export * from './lib/formatBytes';
+export * from './lib/describeBackend';
 export * from './lib/appLockLogic';
 export * from './lib/secureKeyValueStorage';
 
@@ -16,6 +17,7 @@ export * from './hooks/useIsWide';
 export * from './hooks/useSidebarStore';
 export * from './hooks/useTabBarPadding';
 export * from './hooks/useAudioMixingStore';
+export * from './hooks/useDevModeStore';
 export * from './hooks/useHaptic';
 export * from './hooks/useToastStore';
 // Offline/media primitives (lifted from the apps' duplicated subsystem)
