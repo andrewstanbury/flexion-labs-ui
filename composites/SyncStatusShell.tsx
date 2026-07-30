@@ -22,12 +22,19 @@ export function SyncStatusShell({
   pendingCount = 0,
   show = true,
   backgroundColor,
+  backend,
   children,
 }: {
   state: SyncState;
   pendingCount?: number;
   show?: boolean;
   backgroundColor?: string;
+  /**
+   * Optional backend badge for the status row. Pass it only when the app has
+   * decided the detail should be visible — the shell does not read dev-mode
+   * state itself, so this stays a presentation component.
+   */
+  backend?: { label: string; host: string };
   children: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
@@ -36,7 +43,7 @@ export function SyncStatusShell({
 
   return (
     <View style={{ flex: 1, paddingTop: insets.top, backgroundColor }}>
-      <SyncStatusBar state={state} pendingCount={pendingCount} />
+      <SyncStatusBar state={state} pendingCount={pendingCount} backend={backend} />
       <TopInsetConsumedContext.Provider value={true}>
         <View style={{ flex: 1 }}>{children}</View>
       </TopInsetConsumedContext.Provider>
