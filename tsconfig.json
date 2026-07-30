@@ -5,7 +5,25 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": true,
+
+    // Needed from SDK 57 / TypeScript 6. Without it, tsc stops picking up
+    // node_modules/@types automatically and every test file fails with 367
+    // errors of the form:
+    //
+    //   TS2593: Cannot find name 'describe'
+    //
+    // @types/jest is installed, and neither `types` nor `typeRoots` is set
+    // anywhere in the resolved config, so automatic discovery should apply.
+    // Setting `typeRoots` alone does NOT fix it — only an explicit `types` list
+    // does, which is why this is a list and not a directory.
+    //
+    // The mechanism is not established. expo/tsconfig.base gained
+    // `customConditions` and `${configDir}`-relative excludes in this SDK, and
+    // either could plausibly be involved; recorded as observed behaviour rather
+    // than a diagnosis. The cost of the allowlist is that a new @types package
+    // has to be added here to be visible.
+    "types": ["jest", "node", "react"]
   },
   "include": ["**/*.ts", "**/*.tsx", "nativewind-env.d.ts"],
   "exclude": ["node_modules"]
