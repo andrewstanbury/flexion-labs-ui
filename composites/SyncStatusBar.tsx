@@ -8,7 +8,8 @@ import { SyncStatusIcon, syncStatusLabel, type SyncState } from './SyncStatusDot
 // header actions. Tap anywhere on the row to reveal a one-line detail inline
 // (left of the dot), so there's no fragile absolutely-positioned popover.
 // `backend` is optional diagnostic chrome, shown only when the app passes it —
-// which it does when dev mode is on (useDevModeStore) and the build allows it.
+// which it does when the backendIndicator feature flag is on and the build
+// allows dev tooling at all.
 // It sits at the LEFT of the same row rather than in a new one, so nothing
 // shifts when it appears and no extra vertical space is reserved for it.
 export function SyncStatusBar({
