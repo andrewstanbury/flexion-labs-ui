@@ -1,11 +1,12 @@
 import { View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { ComponentProps } from 'react';
+import { useEffect, type ComponentProps } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { space } from '../tokens';
 import { useTheme } from '../UIProvider';
 import { Pressable } from '../primitives/Pressable';
 import { Text } from '../primitives/Text';
+import { useTabBarHeightStore } from '../hooks/useTabBarHeightStore';
 
 // TabBar — design-system replacement for the inline CustomTabBar in
 // (app)/_layout.tsx. Driven by a config map keyed on route name so layouts
@@ -33,9 +34,18 @@ export type TabBarProps = {
 export function TabBar({ state, navigation, tabs }: TabBarProps) {
   const insets = useSafeAreaInsets();
   const t = useTheme();
+  const setTabBarHeight = useTabBarHeightStore((s) => s.setHeight);
+
+  // Publish the bar's real height so useTabBarPadding can keep scroll content
+  // clear of it. Measured rather than derived from the styles below, so it stays
+  // right when the OS font scale or the bottom inset changes. Cleared on unmount
+  // so screens outside the tab navigator fall back to the safe-area inset
+  // instead of padding for a bar that is no longer on screen.
+  useEffect(() => () => setTabBarHeight(null), [setTabBarHeight]);
 
   return (
     <View
+      onLayout={(e) => setTabBarHeight(e.nativeEvent.layout.height)}
       style={[
         styles.bar,
         {

@@ -3,6 +3,29 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.15.0
+- **BREAKING (runtime, not API): dropped the `@react-navigation/bottom-tabs`
+  dependency.** As of Expo SDK 56 expo-router no longer builds on React
+  Navigation — SDK 57's expo-router depends on `standard-navigation` and has no
+  `@react-navigation/*` dependency at all. This package was the ONLY thing
+  pulling `@react-navigation/bottom-tabs` into either app, and that orphaned
+  copy threw at module scope under SDK 57. Because `index.ts` re-exports
+  everything, the throw took down the entire design system, and with it every
+  screen in both apps — presenting as an instant native crash in Expo Go with no
+  JS error, and `TypeError: undefined is not a function` in a dev client.
+- `useTabBarPadding` now reads the bar height from the new
+  **`useTabBarHeightStore`**, which `shell/TabBar` populates via `onLayout`.
+  A store rather than a context because the tab bar renders as a SIBLING of the
+  screens, so a provider inside `TabBar` could never reach the scroll views that
+  need the value; React Navigation supplied it from inside the navigator, and
+  there is no navigator to hook into now. Measured rather than derived from the
+  style constants, so it stays correct across OS font-scale and safe-area
+  changes. Public API of `useTabBarPadding` is unchanged.
+- Added `expo-secure-store` to `peerDependencies` — it was imported by
+  `lib/secureKeyValueStorage` but never declared.
+- Regression test asserts `useTabBarPadding` never imports `@react-navigation/*`
+  again.
+
 ## v0.11.0
 - **ListPicker** — a new composite for settings with many options. Where
   `SegmentedControl` is a fixed row of pills (good for 2–3 options), `ListPicker`

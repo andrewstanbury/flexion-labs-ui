@@ -1,6 +1,6 @@
 {
   "name": "@flexion-labs/ui",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "description": "Shared design system (components, tokens, theme) for the Flexion Labs client and practitioner apps.",
   "license": "UNLICENSED",
   "private": false,
@@ -15,10 +15,10 @@
   "peerDependencies": {
     "@expo/vector-icons": "*",
     "@react-native-async-storage/async-storage": "*",
-    "@react-navigation/bottom-tabs": "*",
     "@tanstack/react-query": "*",
     "expo-file-system": "*",
     "expo-haptics": "*",
+    "expo-secure-store": "*",
     "nativewind": "*",
     "react": "*",
     "react-native": "*",
@@ -32,8 +32,6 @@
     "@expo/vector-icons": "^15.1.1",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native/jest-preset": "^0.86.2",
-    "@react-navigation/bottom-tabs": "~7.15.13",
-    "@react-navigation/native": "^7.3.14",
     "@tanstack/react-query": "^5.100.8",
     "@testing-library/react-native": "^13.3.3",
     "@types/jest": "^29.5.14",
