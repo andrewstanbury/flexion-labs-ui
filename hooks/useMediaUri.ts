@@ -18,6 +18,24 @@ const SIGNED_URL_GC = 50 * 60 * 1000;
  *   2. CloudFront signed URL (fetched via the app-injected `fetchSignedUrl`)
  *   3. directFallbackUrl — the original CDN URL stored on the exercise record
  *
+ * ⚠️ Step 3 CANNOT FIRE against core-go as things stand, and must not be relied
+ * on as a safety net. Two independent reasons:
+ *
+ *   - `scripts/import-to-postgres.js` writes video_url / thumbnail_url /
+ *     preview_url as literal NULL, so core-go omits them from the response and
+ *     every caller passes `undefined` here. (The DynamoDB catalogue in
+ *     flexion-labs-exercises DOES populate them, which is why the parameter
+ *     still exists — a consumer of that API could use it.)
+ *   - Even if a CloudFront path were stored, it would 403: the distribution
+ *     requires a trusted key group, so unsigned requests return
+ *     `MissingKey`. Only the original media.physitrack.com URLs work unsigned,
+ *     and the product deliberately migrated off that third-party CDN.
+ *
+ * Consequence, observed for real on 2026-07-31: when signing broke (the Lambda
+ * was missing CLOUDFRONT_PRIVATE_KEY after the AWS cutover), NO media rendered
+ * anywhere in either app. There was no degraded mode. If you want one, it needs
+ * signed-URL caching or an unsigned origin — not this parameter.
+ *
  * Lifted into the design system in v0.8.6 (was duplicated per app). Crucially it
  * RESETS the URI to null while re-resolving when exerciseId/file changes, so a
  * reused player/image never momentarily shows the PREVIOUS exercise's media —
