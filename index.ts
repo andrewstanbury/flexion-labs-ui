@@ -16,6 +16,7 @@ export * from './hooks/useIsDark';
 export * from './hooks/useIsWide';
 export * from './hooks/useSidebarStore';
 export * from './hooks/useTabBarPadding';
+export * from './hooks/useTabBarHeightStore';
 export * from './hooks/useAudioMixingStore';
 export * from './hooks/useFeatureFlagsStore';
 export * from './hooks/useHaptic';
