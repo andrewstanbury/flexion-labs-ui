@@ -3,6 +3,39 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.16.0
+
+**Removes react-native-reanimated.** This unblocks Expo Go for both apps.
+
+reanimated 4 requires `react-native-worklets`, a separate native module Expo Go
+cannot load. Requiring it kills the app at IMPORT time — natively, with no JS
+error and nothing in the Metro logs. Because `index.ts` re-exports everything,
+one animating primitive took down every screen in BOTH apps, presenting as
+"the app crashes the instant the bundle reaches 100%".
+
+Found by marker-bisection on a device: app mounts -> `@flexion-labs/ui` dies ->
+26 modules OK, `primitives/Button` dies -> its only suspect import is
+reanimated -> isolated probe dies on `react-native-worklets` before reanimated
+is even reached.
+
+Migrated to React Native's built-in `Animated`, which has no native dependency
+beyond RN itself:
+
+- `primitives/Pressable` — press scale, `useNativeDriver: true`. Unchanged feel.
+- `primitives/Button` — 3D press via `interpolate` (an `Animated.Value` cannot
+  be read synchronously, so `press.value * edge` has no equivalent). Unchanged.
+- `composites/ToastViewport` — entrance preserved. **The EXIT animation is
+  lost**: core Animated cannot animate an unmounting component, which is
+  exactly what reanimated's layout animations provided. Toasts now vanish
+  rather than fading up. Restoring it means holding dismissed toasts mounted
+  through an exit tween in `useToastStore` — a state-machine change, so it is
+  deliberately not bundled in here.
+
+Also dropped from `peerDependencies` and `devDependencies`, and the jest mock
+removed. New `__tests__/noReanimated.test.ts` fails if either package is
+imported or declared again — nothing else catches this, since it type-checks,
+lints and unit-tests clean (jest mocked reanimated) and only fails on a phone.
+
 ## v0.15.0
 - **BREAKING (runtime, not API): dropped the `@react-navigation/bottom-tabs`
   dependency.** As of Expo SDK 56 expo-router no longer builds on React
