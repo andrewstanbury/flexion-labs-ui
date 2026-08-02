@@ -1,7 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Minimal mocks so primitives render in jest-node (mirrors the apps' setup).
-jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
-
 // KeyboardScreen renders KeyboardAwareScrollView; the library ships a jest mock
 // that renders its components as plain Views (no native keyboard module).
 jest.mock('react-native-keyboard-controller', () =>

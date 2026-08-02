@@ -1,6 +1,12 @@
-import { cloneElement, isValidElement, type ReactElement, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, View, type StyleProp, type ViewStyle } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { cloneElement, isValidElement, useRef, type ReactElement, type ReactNode } from 'react';
+import {
+  ActivityIndicator,
+  Animated,
+  Pressable,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import { controlHeight, radius, space } from '../tokens';
 import { useTheme } from '../UIProvider';
 import { Text } from './Text';
@@ -80,18 +86,28 @@ function ButtonRoot({
   const edge = flat ? 0 : EDGE;
   const faceH = s.height - edge;
 
-  // 0 = raised, 1 = pressed flat onto the base.
-  const press = useSharedValue(0);
-  const faceStyle = useAnimatedStyle(() => ({ transform: [{ translateY: press.value * edge }] }));
+  // 0 = raised, 1 = pressed flat onto the base. Core Animated rather than
+  // reanimated — see the note in primitives/Pressable.tsx: reanimated 4 pulls
+  // react-native-worklets, which Expo Go cannot load, and it killed the whole
+  // library at import time.
+  const press = useRef(new Animated.Value(0)).current;
+  // Interpolate rather than multiply: an Animated.Value cannot be read
+  // synchronously, so `press.value * edge` has no equivalent here.
+  const faceTranslateY = press.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, edge],
+  });
+  const animate = (toValue: number, duration: number) =>
+    Animated.timing(press, { toValue, duration, useNativeDriver: true }).start();
 
   return (
     <Pressable
       onPress={onPress}
       onPressIn={() => {
-        if (!isInactive) press.value = withTiming(1, { duration: 40 });
+        if (!isInactive) animate(1, 40);
       }}
       onPressOut={() => {
-        press.value = withTiming(0, { duration: 120 });
+        animate(0, 120);
       }}
       disabled={isInactive}
       accessibilityRole="button"
@@ -135,7 +151,7 @@ function ButtonRoot({
             justifyContent: 'center',
             gap: space[2],
           },
-          faceStyle,
+          { transform: [{ translateY: faceTranslateY }] },
         ]}
       >
         {loading ? (
