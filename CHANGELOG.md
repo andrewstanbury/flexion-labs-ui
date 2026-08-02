@@ -3,6 +3,31 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.17.0
+
+Tighter visual scale, adapted from the sibling `quorum-ui` library the owner
+preferred. No API change — token values only, so every one of the 29 components
+moves together.
+
+- **Type scale down 1-2px** from `h1` through `label` (`body` 16 -> 15, `h1`
+  24 -> 22, `h3` 18 -> 16). 16px body is the platform default and reads as
+  unstyled; 15px reads as chosen.
+- **Weights up one step** on headings, labels and buttons — smaller text needs
+  more weight to hold the same presence.
+- **`letterSpacing` added**: negative on headings (large type looks loose at
+  default tracking), positive on `label`. This was absent entirely, and is the
+  single change that most makes type look deliberate.
+- **Radius tightened**: `card` 24 -> 13, `field` 16 -> 12, `lg` 16 -> 14,
+  `xl` 20 -> 18. `card` at 24 was the loudest thing in the old look — on a
+  screen made mostly of cards it read as soft rather than precise.
+- **Fix: `Text` was dropping `letterSpacing`.** It picked style fields one by
+  one, so the new tracking would have been silently ignored — tokens changed,
+  nothing rendered differently. Now spread conditionally, with two tests that
+  pin the wiring (not the values, so future scale changes stay free).
+
+Deliberately NOT changed: `layout` gutters and `shadow`. Those shift every
+screen's rhythm at once and are better judged on a device than in a diff.
+
 ## v0.16.0
 
 **Removes react-native-reanimated.** This unblocks Expo Go for both apps.
@@ -35,6 +60,7 @@ Also dropped from `peerDependencies` and `devDependencies`, and the jest mock
 removed. New `__tests__/noReanimated.test.ts` fails if either package is
 imported or declared again — nothing else catches this, since it type-checks,
 lints and unit-tests clean (jest mocked reanimated) and only fails on a phone.
+
 
 ## v0.15.0
 - **BREAKING (runtime, not API): dropped the `@react-navigation/bottom-tabs`
