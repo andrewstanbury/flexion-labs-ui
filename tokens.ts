@@ -157,9 +157,14 @@ export const space = {
 
 // Semantic spacing aliases for layout patterns that recur across screens.
 export const layout = {
-  screenX: space[6],   // horizontal page gutter (24)
-  screenY: space[8],   // vertical page padding (32)
-  card:    space[5],   // card inner padding (20)
+  // Tightened in v0.18.0 toward the denser scale the owner preferred in the
+  // Strata app (screenX 20 / screenY 24 / card 16). These are the "fits more on
+  // screen" half of that look; the type scale shipped in v0.17.0 was the other.
+  // controlHeight is deliberately NOT reduced to match — bigger touch targets
+  // matter more for a rehab audience than matching Strata exactly.
+  screenX: space[5],   // horizontal page gutter (20)
+  screenY: space[6],   // vertical page padding (24)
+  card:    space[4],   // card inner padding (16)
   gapXs:   space[1],
   gapSm:   space[2],
   gapMd:   space[3],
@@ -246,12 +251,16 @@ export const shadow = {
     shadowOffset: { width: 0, height: 0 },
     elevation: 0,
   },
+  // Softened in v0.18.0. Paired with the 1px border added to Card, this is what
+  // reads as "crisp" rather than "floating": the edge does the work of defining
+  // the card and the shadow only lifts it slightly, instead of a larger diffuse
+  // shadow carrying the definition on its own.
   card: {
     shadowColor: colors.black,
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
   },
   modal: {
     shadowColor: colors.black,

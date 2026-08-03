@@ -3,6 +3,37 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.18.0
+
+Strata pass 2: density and card treatment. Follows v0.17.0's type scale — that
+was the "designed" half, this is the "fits more on screen" half. Token values
+plus the `Card` primitive; no API change.
+
+- **Card gains a 1px hairline border** (`t.border` — `sand[200]` light,
+  `sand[700]` dark) on **both** variants. This is the main visual change. Plain
+  cards carry no shadow at all, so on the cream light surface the edge is what
+  separates a card from the page behind it.
+- **Card shadow softened** `0.06/8/2` -> `0.05/6/1`. With the border doing the
+  defining, the shadow only needs to lift the card slightly — together with the
+  `radius.card` 24 -> 13 shipped in v0.17.0, this is most of what read as
+  "floating" rather than "crisp".
+- **Page gutters and card padding tightened**: `layout.screenX` 24 -> 20,
+  `layout.screenY` 32 -> 24, `layout.card` 20 -> 16.
+- **`Card` default padding `lg` -> `md`** (20 -> 16). The padding ladder itself
+  is unchanged, so `padding="lg"` still gives 20 where a card wants it.
+
+Deliberately NOT changed:
+
+- **`controlHeight` stays 40/48/52.** The reference app uses 38/46/52, but
+  bigger touch targets matter more for a rehab audience than matching it
+  exactly. This is an owner decision, not an oversight — don't "fix" it for
+  consistency.
+
+Also adds the first tests pinning the visual scale. Before this, `layout` and
+`shadow` had no assertions at all: the density and elevation values could be
+changed in either direction with a fully green suite, which is exactly how a
+design system drifts one harmless-looking diff at a time.
+
 ## v0.17.0
 
 Tighter visual scale, adapted from the sibling `quorum-ui` library the owner
