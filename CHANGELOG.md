@@ -3,6 +3,32 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.19.0
+
+Grouped list rows — the structural half of the Strata comparison, and the last
+of the three design decisions from that review.
+
+- **New `ListItem.Group`**: rows inside ONE card separated by hairlines, instead
+  of each row being its own rounded card. Denser, and the model the owner picked.
+
+**Additive — nothing changes until a screen opts in.** Existing `ListItem`
+usage renders exactly as before; grouping is signalled by context, so a row does
+not need to know which model it is in and the two cannot be half-applied. This
+matters because the alternative — changing `ListItem`'s default — would have
+silently restyled every list in both apps at their next re-resolve, across
+roughly 69 screens, with no compile error anywhere to flag it.
+
+Inside a group a row contributes no surface, radius or `minHeight`; the
+container owns all three and clips its children, so square rows cannot paint
+over its rounded corners. Separators are drawn BETWEEN rows rather than as a
+per-row top border, because a row cannot see its own position — a per-row border
+either double-draws at the seam or leaves a stray line above the first row.
+Null children are filtered first, so a conditionally-rendered row does not leave
+a separator with nothing beneath it.
+
+Adopting this per screen is deliberately NOT part of this release. It is a
+visual change across both apps and wants a device, not a diff.
+
 ## v0.18.0
 
 Strata pass 2: density and card treatment. Follows v0.17.0's type scale — that
