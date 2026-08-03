@@ -1,4 +1,4 @@
-import { theme, semantic, colors } from '../tokens';
+import { theme, semantic, colors, layout, shadow, controlHeight, space } from '../tokens';
 
 // Pins the light=pastel-pink / dark=sage-green palette contract. The two
 // schemes intentionally diverge: light mode's primary/accent is pastel pink,
@@ -28,5 +28,53 @@ describe('semantic palette', () => {
         expect(semantic[scheme][key]).toMatch(/^#|^transparent$/);
       }
     }
+  });
+});
+
+// The visual scale had NO test pinning it before v0.18.0 — the density and
+// shadow values could be changed, in either direction, with a green suite. That
+// is how a design system drifts: each individual nudge looks harmless in a diff
+// and nothing ever fails. These are deliberate values chosen against a
+// reference app, so they are pinned like any other contract.
+describe('layout density (v0.18.0)', () => {
+  it('uses the tightened page gutters and card padding', () => {
+    expect(layout.screenX).toBe(20);
+    expect(layout.screenY).toBe(24);
+    expect(layout.card).toBe(16);
+  });
+
+  it('keeps the LARGER control heights — deliberately not matching Strata', () => {
+    // Touch targets were held back from the density pass on purpose: this is a
+    // rehab app whose users may have limited dexterity. If a future pass wants
+    // 38/46, that is an owner decision, not a consistency cleanup.
+    expect(controlHeight.sm).toBe(40);
+    expect(controlHeight.md).toBe(48);
+  });
+
+  it('keeps gutters on the space scale rather than drifting to loose numbers', () => {
+    const scale: number[] = Object.values(space);
+    for (const v of [layout.screenX, layout.screenY, layout.card]) {
+      expect(scale).toContain(v);
+    }
+  });
+});
+
+describe('card elevation (v0.18.0)', () => {
+  it('is a whisper, because the 1px border carries the definition', () => {
+    expect(shadow.card.shadowOpacity).toBeCloseTo(0.05);
+    expect(shadow.card.shadowRadius).toBe(6);
+    expect(shadow.card.shadowOffset).toEqual({ width: 0, height: 1 });
+  });
+
+  it('stays lighter than the modal shadow', () => {
+    // A guard against "soften everything" or "strengthen everything" sweeps
+    // that would flatten the hierarchy between a card and a modal.
+    expect(shadow.card.shadowOpacity).toBeLessThan(shadow.modal.shadowOpacity);
+    expect(shadow.card.shadowRadius).toBeLessThan(shadow.modal.shadowRadius);
+  });
+
+  it('leaves the none variant genuinely flat', () => {
+    expect(shadow.none.shadowOpacity).toBe(0);
+    expect(shadow.none.elevation).toBe(0);
   });
 });
