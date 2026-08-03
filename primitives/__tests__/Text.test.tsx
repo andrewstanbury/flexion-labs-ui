@@ -32,4 +32,24 @@ describe('Text font scaling', () => {
     const { getByText } = render(<Text variant="body">Hi</Text>);
     expect(getByText('Hi').props.maxFontSizeMultiplier).toBe(1.5);
   });
+
+  // v0.16.0 added letterSpacing to the type scale (negative on headings,
+  // positive on labels). Text picked style fields one by one, so the new field
+  // was silently dropped — the tokens changed and nothing rendered differently.
+  // These pin the wiring, not the values: they read from the token, so a future
+  // scale change stays free while a dropped field fails loudly.
+  it('applies letterSpacing from the token when the variant defines it', () => {
+    const { getByText } = render(<Text variant="h1">Hi</Text>);
+    const s = fontStyle(getByText('Hi')) as { letterSpacing?: number };
+    expect(s.letterSpacing).toBe((typography.h1 as { letterSpacing: number }).letterSpacing);
+  });
+
+  it('omits letterSpacing entirely for variants without it', () => {
+    const { getByText } = render(<Text variant="body">Hi</Text>);
+    const s = fontStyle(getByText('Hi')) as { letterSpacing?: number };
+    // Not merely undefined-valued: body has no tracking, so the key must not be
+    // set at all, or it would override a caller's own style.
+    expect('letterSpacing' in typography.body).toBe(false);
+    expect(s.letterSpacing).toBeUndefined();
+  });
 });

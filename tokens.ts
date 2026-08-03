@@ -169,16 +169,24 @@ export const layout = {
 
 // Border-radius scale. `pill` = fully rounded; `card` is the standard card
 // corner; `field` matches input height visually.
+// Tightened 2026-08-02 alongside the type scale. `card` at 24 was the single
+// loudest thing in the old look — very round corners dominate a screen made
+// mostly of cards, and read as soft rather than precise. 13 keeps the corner
+// visible without it becoming the subject.
+//
+// `field` drops to 12 so inputs read as crisp against the 46-52px control
+// heights. The 2xl/3xl steps are kept for the few places that genuinely want a
+// large radius (sheets, modals) rather than being folded into `card`.
 export const radius = {
   none:  0,
   sm:    6,
-  md:    12,
-  field: 16,
-  lg:    16,
-  xl:    20,
-  card:  24,
-  '2xl': 24,
-  '3xl': 28,
+  md:    11,
+  field: 12,
+  lg:    14,
+  xl:    18,
+  card:  13,
+  '2xl': 20,
+  '3xl': 24,
   pill:  9999,
 } as const;
 
@@ -193,16 +201,30 @@ export const controlHeight = {
 // Type scale. Each entry is [fontSize, lineHeight] in pixels. Primitives
 // (`<Text.H1>` etc.) read from here; app code shouldn't ever set
 // `fontSize` directly.
+// Tightened 2026-08-02 to the denser scale the owner preferred in the sibling
+// quorum-ui library. Three changes, applied consistently:
+//
+//   1. Sizes down 1-2px from h1 through label. 16px body is the platform
+//      default and reads as "unstyled"; 15px reads as chosen.
+//   2. Weights up one step on headings, labels and buttons. Smaller text needs
+//      more weight to keep the same presence.
+//   3. letterSpacing added — NEGATIVE on headings (large type looks loose at
+//      default tracking) and POSITIVE on labels (small all-caps-ish text needs
+//      air). This is the part that most makes type look deliberate, and it was
+//      simply absent before.
+//
+// display stays 28/34: it is already the right size, and only gains the weight
+// and tracking treatment.
 export const typography = {
-  display: { fontSize: 28, lineHeight: 34, fontWeight: '700' as const },
-  h1:      { fontSize: 24, lineHeight: 30, fontWeight: '700' as const },
-  h2:      { fontSize: 20, lineHeight: 26, fontWeight: '600' as const },
-  h3:      { fontSize: 18, lineHeight: 24, fontWeight: '600' as const },
-  body:    { fontSize: 16, lineHeight: 24, fontWeight: '400' as const },
-  bodyStrong: { fontSize: 16, lineHeight: 24, fontWeight: '600' as const },
-  caption: { fontSize: 13, lineHeight: 18, fontWeight: '400' as const },
-  label:   { fontSize: 12, lineHeight: 16, fontWeight: '600' as const },
-  button:  { fontSize: 16, lineHeight: 20, fontWeight: '600' as const },
+  display: { fontSize: 28, lineHeight: 34, fontWeight: '800' as const, letterSpacing: -0.5 },
+  h1:      { fontSize: 22, lineHeight: 28, fontWeight: '800' as const, letterSpacing: -0.4 },
+  h2:      { fontSize: 19, lineHeight: 25, fontWeight: '700' as const, letterSpacing: -0.2 },
+  h3:      { fontSize: 16, lineHeight: 21, fontWeight: '700' as const, letterSpacing: -0.1 },
+  body:    { fontSize: 15, lineHeight: 22, fontWeight: '400' as const },
+  bodyStrong: { fontSize: 15, lineHeight: 22, fontWeight: '600' as const },
+  caption: { fontSize: 12.5, lineHeight: 17, fontWeight: '400' as const },
+  label:   { fontSize: 11, lineHeight: 15, fontWeight: '800' as const, letterSpacing: 0.7 },
+  button:  { fontSize: 15, lineHeight: 20, fontWeight: '800' as const },
 } as const;
 
 // Motion durations (ms). Use these for any Animated timing call to keep

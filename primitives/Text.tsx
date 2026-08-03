@@ -63,6 +63,11 @@ function TextRoot({
           fontSize: t.fontSize,
           lineHeight: t.lineHeight,
           fontWeight: t.fontWeight,
+          // Spread rather than named: not every variant defines letterSpacing,
+          // and listing it explicitly would set `undefined` on the ones that
+          // don't. Picking fields one by one is also how the tracking added to
+          // the type scale in v0.16.0 was silently dropped before this line.
+          ...('letterSpacing' in t ? { letterSpacing: t.letterSpacing } : null),
         },
         style,
       ]}
