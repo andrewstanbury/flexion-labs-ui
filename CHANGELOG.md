@@ -3,6 +3,25 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.21.0
+
+**PanelCarousel: optional narration.** New opt-in props, off by default —
+every existing call site is unaffected unless it passes one of these:
+
+- `narrate?: boolean` — reads each panel's step text aloud via on-device TTS
+  (`expo-speech`, new peer dependency) as it becomes current, adds a mute
+  toggle next to play/pause. Narration is cut off immediately on
+  pause/background/mute rather than left to finish on its own.
+- `steps?: PanelStep[]` (`{ text, holdSeconds? }`, parallel to `uris`) — real
+  per-panel step text + minimum hold time. Omit an entry, or the whole prop,
+  and placeholder text ("Step N of M. Hold for Ns.") is generated instead, so
+  the experience works before any real step content exists.
+- Each panel's dwell time now stretches (never shrinks below `intervalMs` or
+  `holdSeconds`) to fit its narration's estimated reading time plus a margin,
+  so the narrator doesn't get cut off mid-sentence. The estimate is computed
+  up front from a conservative words-per-minute pace rather than driven by a
+  live TTS callback, so the timeline/seek math stays fully deterministic.
+
 ## v0.20.11
 
 - **Slower, smoother crossfade** between panels — `FADE_MS` 300ms → 550ms;

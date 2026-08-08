@@ -1,5 +1,9 @@
 import { act, fireEvent, render } from '@testing-library/react-native';
+import * as Speech from 'expo-speech';
 import { PanelCarousel } from '../PanelCarousel';
+
+const speak = Speech.speak as jest.Mock;
+const stop = Speech.stop as jest.Mock;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function layout(view: any) {
@@ -50,7 +54,10 @@ function isShowing(
 }
 
 describe('<PanelCarousel />', () => {
-  beforeEach(() => jest.useFakeTimers());
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.clearAllMocks();
+  });
   afterEach(() => jest.useRealTimers());
 
   it('renders nothing for an empty list', () => {
@@ -289,5 +296,120 @@ describe('<PanelCarousel />', () => {
     // verified manually rather than here. What's covered above is everything
     // the timeline renders and computes independent of how a seek is
     // triggered (fill percentage, decode-gated crossfade, play/pause state).
+  });
+
+  describe('narration — reads each step aloud via on-device TTS, opt-in', () => {
+    it('never narrates unless explicitly opted in', () => {
+      const { getByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg']} testID="carousel" />,
+      );
+      layout(getByTestId('carousel'));
+      act(() => jest.advanceTimersByTime(5000));
+      expect(speak).not.toHaveBeenCalled();
+    });
+
+    it('does not render a mute button unless narrating', () => {
+      const { getByTestId, queryByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg']} testID="carousel" />,
+      );
+      layout(getByTestId('carousel'));
+      expect(queryByTestId('carousel-mute')).toBeNull();
+    });
+
+    it('narrates placeholder step text when no real steps are given', () => {
+      const { getByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg']} narrate testID="carousel" />,
+      );
+      layout(getByTestId('carousel'));
+      expect(speak).toHaveBeenCalledWith('Step 1 of 2. Hold for 2 seconds.');
+    });
+
+    it('narrates real step text when steps is provided', () => {
+      const { getByTestId } = render(
+        <PanelCarousel
+          uris={['a.jpg', 'b.jpg']}
+          narrate
+          steps={[
+            { text: 'Raise both arms overhead', holdSeconds: 3 },
+            { text: 'Lower slowly', holdSeconds: 1 },
+          ]}
+          testID="carousel"
+        />,
+      );
+      layout(getByTestId('carousel'));
+      expect(speak).toHaveBeenCalledWith('Raise both arms overhead');
+    });
+
+    it('narrates the next step once its panel becomes current', () => {
+      const { getByTestId, queryByTestId } = render(
+        <PanelCarousel
+          uris={['a.jpg', 'b.jpg']}
+          narrate
+          intervalMs={1000}
+          steps={[{ text: 'First', holdSeconds: 1 }, { text: 'Second', holdSeconds: 1 }]}
+          testID="carousel"
+        />,
+      );
+      layout(getByTestId('carousel'));
+      expect(speak).toHaveBeenCalledWith('First');
+      // Panel 0's dwell time is stretched slightly beyond intervalMs to fit
+      // "First"'s narration estimate — advance well past that, not exactly
+      // intervalMs, to avoid coupling this test to the internal estimate.
+      advanceAndLoad(2000, queryByTestId, 'b.jpg');
+      expect(speak).toHaveBeenCalledWith('Second');
+    });
+
+    it("stretches a panel's dwell time so a long narration isn't cut short", () => {
+      const longText = 'word '.repeat(40).trim(); // ~40 words, well beyond a 500ms panel
+      const { getByTestId, queryByTestId } = render(
+        <PanelCarousel
+          uris={['a.jpg', 'b.jpg']}
+          narrate
+          intervalMs={500}
+          steps={[{ text: longText, holdSeconds: 1 }, { text: 'Second', holdSeconds: 1 }]}
+          testID="carousel"
+        />,
+      );
+      layout(getByTestId('carousel'));
+      // Under plain intervalMs pacing this would already have advanced.
+      act(() => jest.advanceTimersByTime(2000));
+      expect(isShowing(queryByTestId, 'b.jpg')).toBe(false);
+      // Long enough to cover even a generous words-per-minute estimate.
+      act(() => jest.advanceTimersByTime(20000));
+      expect(queryByTestId('carousel-slot-0')?.props.source.uri === 'b.jpg' ||
+        queryByTestId('carousel-slot-1')?.props.source.uri === 'b.jpg').toBe(true);
+    });
+
+    it('stops narration immediately on pause rather than letting it finish', () => {
+      const { getByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg']} narrate testID="carousel" />,
+      );
+      layout(getByTestId('carousel'));
+      expect(speak).toHaveBeenCalledTimes(1);
+      fireEvent.press(getByTestId('carousel-tap-area')); // reveal controls
+      fireEvent.press(getByTestId('carousel-toggle')); // pause
+      expect(stop).toHaveBeenCalled();
+    });
+
+    it('mute stops and silences narration; unmute re-narrates the current step', () => {
+      const { getByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg']} narrate intervalMs={1000} testID="carousel" />,
+      );
+      layout(getByTestId('carousel'));
+      fireEvent.press(getByTestId('carousel-tap-area')); // reveal — the mute button is inert while hidden
+      expect(speak).toHaveBeenCalledTimes(1);
+      expect(getByTestId('carousel-mute').props.accessibilityLabel).toBe('Mute');
+
+      fireEvent.press(getByTestId('carousel-mute'));
+      expect(stop).toHaveBeenCalled();
+      expect(getByTestId('carousel-mute').props.accessibilityLabel).toBe('Unmute');
+      const callsWhileMuted = speak.mock.calls.length;
+      act(() => jest.advanceTimersByTime(1000));
+      expect(speak.mock.calls.length).toBe(callsWhileMuted); // no new narration while muted
+
+      fireEvent.press(getByTestId('carousel-mute')); // unmute
+      expect(getByTestId('carousel-mute').props.accessibilityLabel).toBe('Mute');
+      expect(speak.mock.calls.length).toBeGreaterThan(callsWhileMuted); // re-narrates current step
+    });
   });
 });

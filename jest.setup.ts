@@ -20,6 +20,14 @@ jest.mock('@expo/vector-icons', () => {
   return new Proxy({}, { get: (_t, prop) => (prop === '__esModule' ? true : stub(String(prop))) });
 });
 
+// No native speech engine under jest — PanelCarousel's narration is tested
+// against these jest.fn() stubs (call args, call count), not real audio.
+jest.mock('expo-speech', () => ({
+  speak: jest.fn(),
+  stop: jest.fn(),
+  isSpeakingAsync: jest.fn().mockResolvedValue(false),
+}));
+
 jest.mock('nativewind', () => ({
   styled: (C: any) => C,
   useColorScheme: () => ({ colorScheme: 'light', setColorScheme: jest.fn() }),

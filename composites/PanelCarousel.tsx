@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   GestureResponderEvent,
@@ -8,6 +8,7 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
+import * as Speech from 'expo-speech';
 import { Icon } from '../primitives/Icon';
 import { Pressable } from '../primitives/Pressable';
 import { useTheme } from '../UIProvider';
@@ -18,8 +19,42 @@ const TICK_MS = 100;
 const CONTROLS_AUTO_HIDE_MS = 2500;
 const REPLAY_AUTO_HIDE_MS = 800;
 const CONTROLS_FADE_MS = 250;
+const DEFAULT_HOLD_SECONDS = 2;
+// Conservative (slower-than-typical) reading pace, so the ESTIMATE of how
+// long narration will take leans long rather than short — better to hold a
+// panel a beat too long than cut the narrator off mid-sentence. Duration is
+// estimated up front rather than measured from a live TTS callback so the
+// timeline/seek math stays fully deterministic (and testable without a real
+// speech engine); NARRATION_BUFFER_MS below adds extra margin on top.
+const WORDS_PER_MINUTE = 130;
+const NARRATION_BUFFER_MS = 600;
 
 type Slot = 0 | 1;
+
+export type PanelStep = {
+  text: string;
+  // Minimum time to hold this panel, independent of narration length.
+  holdSeconds?: number;
+};
+
+type ResolvedStep = { text: string; holdSeconds: number };
+
+function estimateSpeechMs(text: string): number {
+  const words = text.trim().split(/\s+/).filter(Boolean).length;
+  if (words === 0) return 0;
+  return (words / WORDS_PER_MINUTE) * 60_000;
+}
+
+// Which panel should be showing at a given point in elapsed playback time.
+// Panel i occupies [boundaries[i], boundaries[i+1]) — the last panel keeps
+// its own full dwell time before playback counts as "finished" (elapsedMs
+// reaching boundaries[boundaries.length - 1], the total).
+function indexForElapsed(elapsedMs: number, boundaries: number[]): number {
+  for (let i = 0; i < boundaries.length - 1; i++) {
+    if (elapsedMs < boundaries[i + 1]) return i;
+  }
+  return Math.max(boundaries.length - 2, 0);
+}
 
 // Plays an ordered set of static images like a video would: a play/pause
 // button that auto-hides during playback and reappears on tap, plus a
@@ -34,6 +69,16 @@ type Slot = 0 | 1;
 // video. Presentational only: the app resolves each panel's URI (e.g. via
 // useMediaUri) and passes the plain ordered array in, so this stays free of
 // app/network concerns.
+//
+// Optional narration (`narrate`): reads each panel's step text aloud via
+// on-device TTS (expo-speech) as it becomes current, with a mute toggle
+// alongside play/pause. `steps` supplies real per-panel text + a minimum
+// hold time; omit it and placeholder text ("Step N of M. Hold for Ns.") is
+// generated instead, so the experience works before any real step content
+// exists. Either way, each panel's dwell time stretches to fit however long
+// its narration is estimated to take (never shrinks below `intervalMs` or
+// `holdSeconds`) — the point is following along hands-free without the
+// narrator getting cut off.
 export function PanelCarousel({
   uris,
   aspectRatio = 1,
@@ -41,6 +86,8 @@ export function PanelCarousel({
   autoPlay = true,
   active = true,
   intervalMs = DEFAULT_INTERVAL_MS,
+  steps,
+  narrate = false,
   testID,
 }: {
   uris: string[];
@@ -57,14 +104,59 @@ export function PanelCarousel({
   // false → pause playback (e.g. backgrounded/off-screen). Mirrors the
   // `active` prop on the video views this replaces.
   active?: boolean;
-  // How long each panel stays on screen before advancing, in ms.
+  // Baseline dwell time per panel, in ms — also the floor when `steps`/
+  // `narrate` would otherwise compute a shorter duration.
   intervalMs?: number;
+  // Per-panel step text + minimum hold time, parallel to `uris`. Optional
+  // per-index — a missing entry (or the whole prop) falls back to placeholder
+  // text and DEFAULT_HOLD_SECONDS. Only takes effect (pacing panels beyond
+  // plain `intervalMs`) when this or `narrate` is set.
+  steps?: PanelStep[];
+  // Reads each step's text aloud as its panel becomes current, and adds a
+  // mute toggle. Off by default — most call sites (previews, edit sheets)
+  // shouldn't narrate; opt in where the viewer is actually following along
+  // hands-free.
+  narrate?: boolean;
   testID?: string;
 }) {
   const theme = useTheme();
   const [size, setSize] = useState({ width: 0, height: 0 });
   const canPlay = uris.length > 1;
-  const totalMs = Math.max(uris.length, 1) * intervalMs;
+
+  // Only resolved (and only adds pacing beyond plain intervalMs) when the
+  // caller actually asked for it — everything below falls straight back to
+  // the pre-existing uniform-intervalMs behaviour otherwise, so every call
+  // site that doesn't pass `steps`/`narrate` is unaffected.
+  const resolvedSteps = useMemo<ResolvedStep[] | null>(() => {
+    if (!narrate && !steps) return null;
+    return uris.map((_, i) => {
+      const s = steps?.[i];
+      const holdSeconds = s?.holdSeconds ?? DEFAULT_HOLD_SECONDS;
+      const text =
+        s?.text ?? `Step ${i + 1} of ${uris.length}. Hold for ${holdSeconds} second${holdSeconds === 1 ? '' : 's'}.`;
+      return { text, holdSeconds };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [narrate, steps ? JSON.stringify(steps) : null, uris.length]);
+
+  // Cumulative panel-start times. Panel i's own dwell time is at least
+  // intervalMs, and — only when resolvedSteps is active — stretched to also
+  // fit its holdSeconds and (if narrating) its estimated narration length.
+  const boundaries = useMemo(() => {
+    const b = [0];
+    for (let i = 0; i < uris.length; i++) {
+      let duration = intervalMs;
+      if (resolvedSteps) {
+        const { text, holdSeconds } = resolvedSteps[i];
+        const holdMs = holdSeconds * 1000;
+        const narrationMs = narrate ? estimateSpeechMs(text) + NARRATION_BUFFER_MS : 0;
+        duration = Math.max(intervalMs, holdMs, narrationMs);
+      }
+      b.push(b[i] + duration);
+    }
+    return b;
+  }, [uris.length, resolvedSteps, narrate, intervalMs]);
+  const totalMs = boundaries[boundaries.length - 1] || intervalMs;
 
   const [elapsedMs, setElapsedMs] = useState(0);
   const [isPlaying, setIsPlaying] = useState(autoPlay && canPlay);
@@ -89,6 +181,7 @@ export function PanelCarousel({
   useEffect(
     () => () => {
       mountedRef.current = false;
+      Speech.stop();
     },
     [],
   );
@@ -102,6 +195,11 @@ export function PanelCarousel({
   // with the button, so there's no need to keep it up as long as after a
   // tap-to-reveal.
   const fastHideRef = useRef(false);
+  const [muted, setMuted] = useState(false);
+  // Index whose narration has already been spoken (or -1). Compared against
+  // the current index each tick so a given panel is only narrated once per
+  // visit, not on every render while sitting on it.
+  const narratedIndexRef = useRef(-1);
 
   // Controls fade in/out rather than popping — same as native video chrome.
   // Kept mounted throughout (see the render below) so there's something to
@@ -134,6 +232,8 @@ export function PanelCarousel({
     shownIndexRef.current = 0;
     pendingRef.current = null;
     fastHideRef.current = false;
+    narratedIndexRef.current = -1;
+    Speech.stop();
     setSlotUris([uris[0] ?? null, null]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uris.join('|')]);
@@ -182,7 +282,7 @@ export function PanelCarousel({
   // once it's decoded.
   useEffect(() => {
     if (!canPlay) return;
-    const targetIndex = Math.min(Math.floor(elapsedMs / intervalMs), uris.length - 1);
+    const targetIndex = indexForElapsed(elapsedMs, boundaries);
     if (targetIndex === shownIndexRef.current || pendingRef.current?.index === targetIndex) return;
     const nextSlot: Slot = activeSlotRef.current === 0 ? 1 : 0;
     pendingRef.current = { slot: nextSlot, index: targetIndex };
@@ -191,7 +291,27 @@ export function PanelCarousel({
       next[nextSlot] = uris[targetIndex];
       return next;
     });
-  }, [elapsedMs, intervalMs, uris, canPlay]);
+  }, [elapsedMs, boundaries, uris, canPlay]);
+
+  // Narrates the current panel's step text once per visit, while actually
+  // playing/active/unmuted. Duration pacing (boundaries, above) is precomputed
+  // rather than driven by this, so a slower-than-estimated read never gets cut
+  // off mid-panel — it just means the estimate undershot for that one step.
+  useEffect(() => {
+    if (!narrate || !resolvedSteps || !isPlaying || !active || muted) return;
+    const idx = indexForElapsed(elapsedMs, boundaries);
+    if (narratedIndexRef.current === idx) return;
+    narratedIndexRef.current = idx;
+    Speech.stop();
+    Speech.speak(resolvedSteps[idx].text);
+  }, [elapsedMs, narrate, resolvedSteps, isPlaying, active, muted, boundaries]);
+
+  // Cuts narration off immediately on pause/background/mute, rather than
+  // waiting for the utterance to finish on its own.
+  useEffect(() => {
+    if (!narrate) return;
+    if (!isPlaying || !active || muted) Speech.stop();
+  }, [narrate, isPlaying, active, muted]);
 
   const handleSlotLoad = (slot: Slot) => {
     const pending = pendingRef.current;
@@ -232,6 +352,7 @@ export function PanelCarousel({
     if (!isPlaying && atEnd) {
       // Finished — replay from the first panel, same as a finished video.
       fastHideRef.current = true;
+      narratedIndexRef.current = -1;
       setElapsedMs(0);
       pendingRef.current = null;
       opacities[activeSlotRef.current].setValue(0);
@@ -259,6 +380,20 @@ export function PanelCarousel({
     });
   };
 
+  const toggleMute = () => {
+    setMuted((m) => {
+      const next = !m;
+      if (next) {
+        Speech.stop();
+      } else {
+        // Re-narrate whatever panel is current instead of leaving it silent
+        // until the next panel change.
+        narratedIndexRef.current = -1;
+      }
+      return next;
+    });
+  };
+
   // Jumps straight to whatever panel the tapped/dragged position on the
   // timeline corresponds to. A seek is an instant cut, not a crossfade —
   // that's the expected feel for scrubbing (video players don't dissolve
@@ -274,9 +409,10 @@ export function PanelCarousel({
     if (barWidth <= 0) return;
     const fraction = Math.max(0, Math.min(1, x / barWidth));
     const targetMs = fraction * totalMs;
-    const targetIndex = Math.min(Math.floor(targetMs / intervalMs), uris.length - 1);
+    const targetIndex = indexForElapsed(targetMs, boundaries);
     setIsPlaying(false);
     setControlsVisible(true);
+    Speech.stop();
     if (targetIndex !== shownIndexRef.current) {
       pendingRef.current = null;
       const slot = activeSlotRef.current;
@@ -378,6 +514,27 @@ export function PanelCarousel({
                     </View>
                   </Pressable>
                 </View>
+                {narrate && (
+                  <Pressable
+                    testID={testID ? `${testID}-mute` : undefined}
+                    onPress={toggleMute}
+                    accessibilityRole="button"
+                    accessibilityLabel={muted ? 'Unmute' : 'Mute'}
+                    style={{
+                      position: 'absolute',
+                      top: 12,
+                      right: 12,
+                      width: 40,
+                      height: 40,
+                      borderRadius: 20,
+                      backgroundColor: 'rgba(0,0,0,0.45)',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Icon name={muted ? 'volume-mute' : 'volume-high'} size="md" color="inverse" />
+                  </Pressable>
+                )}
               </Animated.View>
               <View
                 testID={testID ? `${testID}-timeline` : undefined}

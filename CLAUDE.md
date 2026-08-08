@@ -60,7 +60,12 @@ breaking release across both apps.
 - **Composites** (`composites/`): `FormField`, `SectionHeader`, `ListItem`,
   `SegmentedControl`, `ToggleRow`, `EmptyState`, `StatusScreen`,
   `AuthScreenShell`, `StorageBar`, `OfflineBanner`, `SyncStatusDot`,
-  `SyncStatusBar`, `SyncStatusShell`.
+  `SyncStatusBar`, `SyncStatusShell`, `PanelCarousel` (+ `PanelStep` type —
+  video-like player for an ordered set of static panel images; optional
+  `narrate`/`steps` props add on-device TTS narration via `expo-speech`, a
+  peer dependency as of v0.21.0). This list has drifted behind `composites/`
+  before (see `index.ts` for the authoritative set) — `PanelCarousel` is
+  called out because its peer dependency is easy to miss when repointing.
 - **Shell** (`shell/`): `TabBar`, `Header`, `BackButton`, `Modal`,
   `KeyboardScreen`.
 
