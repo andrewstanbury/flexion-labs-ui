@@ -16,6 +16,7 @@ const DEFAULT_INTERVAL_MS = 1800;
 const FADE_MS = 300;
 const TICK_MS = 100;
 const CONTROLS_AUTO_HIDE_MS = 2500;
+const CONTROLS_FADE_MS = 250;
 
 type Slot = 0 | 1;
 
@@ -93,6 +94,19 @@ export function PanelCarousel({
   const barWidthRef = useRef(0);
   const dragStartXRef = useRef(0);
 
+  // Controls fade in/out rather than popping — same as native video chrome.
+  // Kept mounted throughout (see the render below) so there's something to
+  // animate; pointerEvents flips to 'none' immediately on hide, ahead of the
+  // fade finishing, so an invisible button can't still catch a stray tap.
+  const controlsOpacity = useRef(new Animated.Value(controlsVisible ? 1 : 0)).current;
+  useEffect(() => {
+    Animated.timing(controlsOpacity, {
+      toValue: controlsVisible ? 1 : 0,
+      duration: CONTROLS_FADE_MS,
+      useNativeDriver: true,
+    }).start();
+  }, [controlsVisible, controlsOpacity]);
+
   const onLayout = (e: { nativeEvent: { layout: { width: number; height: number } } }) => {
     const { width, height } = e.nativeEvent.layout;
     setSize({ width, height });
@@ -104,6 +118,7 @@ export function PanelCarousel({
     const startPlaying = autoPlay && canPlay;
     setIsPlaying(startPlaying);
     setControlsVisible(!startPlaying);
+    controlsOpacity.setValue(startPlaying ? 0 : 1); // snap, don't fade, on a fresh sequence
     opacity0.setValue(1);
     opacity1.setValue(0);
     activeSlotRef.current = 0;
@@ -309,11 +324,18 @@ export function PanelCarousel({
               onPress={handleContentTap}
               style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
             >
-              {controlsVisible && (
-                <View
-                  pointerEvents="box-none"
-                  style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-                >
+              <Animated.View
+                testID={testID ? `${testID}-controls` : undefined}
+                pointerEvents={controlsVisible ? 'box-none' : 'none'}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  opacity: controlsOpacity,
+                }}
+              >
                   <View
                     pointerEvents="box-none"
                     style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
@@ -363,8 +385,7 @@ export function PanelCarousel({
                       />
                     </View>
                   </View>
-                </View>
-              )}
+              </Animated.View>
             </Pressable>
           )}
         </>

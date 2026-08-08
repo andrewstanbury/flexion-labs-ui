@@ -3,6 +3,17 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.20.9
+
+- **Controls fade in/out instead of popping.** The hide/reveal on tap (added
+  in v0.20.8) was an instant conditional mount — jarring next to the crossfade
+  it sits on top of. Controls are now kept mounted throughout and cross-faded
+  via `Animated.timing` (250ms) driven by the same `controlsVisible` state;
+  `pointerEvents` flips to `'none'` immediately on hide, ahead of the fade
+  finishing, so an invisible control can't still catch a stray tap. A fresh
+  sequence snaps the opacity instantly instead of fading, matching the
+  existing no-fade-on-mount behaviour.
+
 ## v0.20.8
 
 Substantial rework, all three asked for together: no more flash between

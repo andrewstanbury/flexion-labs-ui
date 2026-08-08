@@ -148,12 +148,11 @@ describe('<PanelCarousel />', () => {
 
   describe('controls — hide during playback, reveal on tap, exactly like a video', () => {
     it('starts with controls hidden when it auto-plays', () => {
-      const { getByTestId, queryByTestId } = render(
+      const { getByTestId } = render(
         <PanelCarousel uris={['a.jpg', 'b.jpg']} testID="carousel" />,
       );
       layout(getByTestId('carousel'));
-      expect(queryByTestId('carousel-toggle')).toBeNull();
-      expect(queryByTestId('carousel-timeline')).toBeNull();
+      expect(getByTestId('carousel-controls').props.pointerEvents).toBe('none');
     });
 
     it('starts with controls visible when it does not auto-play', () => {
@@ -161,28 +160,28 @@ describe('<PanelCarousel />', () => {
         <PanelCarousel uris={['a.jpg', 'b.jpg']} autoPlay={false} testID="carousel" />,
       );
       layout(getByTestId('carousel'));
-      expect(getByTestId('carousel-toggle')).toBeTruthy();
+      expect(getByTestId('carousel-controls').props.pointerEvents).toBe('box-none');
     });
 
     it('tapping the content reveals the controls while playing', () => {
-      const { getByTestId, queryByTestId } = render(
+      const { getByTestId } = render(
         <PanelCarousel uris={['a.jpg', 'b.jpg']} testID="carousel" />,
       );
       layout(getByTestId('carousel'));
-      expect(queryByTestId('carousel-toggle')).toBeNull();
+      expect(getByTestId('carousel-controls').props.pointerEvents).toBe('none');
       fireEvent.press(getByTestId('carousel-tap-area'));
-      expect(getByTestId('carousel-toggle')).toBeTruthy();
+      expect(getByTestId('carousel-controls').props.pointerEvents).toBe('box-none');
     });
 
     it('auto-hides again a couple of seconds into playback', () => {
-      const { getByTestId, queryByTestId } = render(
+      const { getByTestId } = render(
         <PanelCarousel uris={['a.jpg', 'b.jpg']} testID="carousel" />,
       );
       layout(getByTestId('carousel'));
       fireEvent.press(getByTestId('carousel-tap-area')); // reveal
-      expect(getByTestId('carousel-toggle')).toBeTruthy();
+      expect(getByTestId('carousel-controls').props.pointerEvents).toBe('box-none');
       act(() => jest.advanceTimersByTime(3000));
-      expect(queryByTestId('carousel-toggle')).toBeNull();
+      expect(getByTestId('carousel-controls').props.pointerEvents).toBe('none');
     });
 
     it('stays visible while paused instead of auto-hiding', () => {
@@ -191,7 +190,7 @@ describe('<PanelCarousel />', () => {
       );
       layout(getByTestId('carousel'));
       act(() => jest.advanceTimersByTime(5000));
-      expect(getByTestId('carousel-toggle')).toBeTruthy();
+      expect(getByTestId('carousel-controls').props.pointerEvents).toBe('box-none');
     });
   });
 
