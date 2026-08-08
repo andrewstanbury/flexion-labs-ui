@@ -338,6 +338,21 @@ describe('<PanelCarousel />', () => {
       expect(speak).toHaveBeenCalledWith('Hold for 2 seconds.', expect.any(Object));
     });
 
+    it('always uses its own audio session, not whatever the surrounding screen happens to have active', () => {
+      // Without this, narration only came out audible on screens that also
+      // happened to have an expo-video player active nearby (which
+      // activates a device audio session as a side effect) — silent on any
+      // review/detail screen that renders PanelCarousel standalone.
+      const { getByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg']} narrate testID="carousel" />,
+      );
+      layout(getByTestId('carousel'));
+      expect(speak).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ useApplicationAudioSession: false }),
+      );
+    });
+
     it('narrates real step text when steps is provided', () => {
       const { getByTestId } = render(
         <PanelCarousel

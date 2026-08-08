@@ -3,6 +3,18 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.23.1
+
+**Fix: narration was silent on any screen without an active audio session.**
+`Speech.speak()` didn't set `useApplicationAudioSession`, so on iOS it rode
+whatever audio session the *rest* of the screen happened to have active —
+audible during the guided workout run (where `expo-video`'s player, even
+muted, activates a device audio session as a side effect) but silent on
+every review/detail screen that renders `PanelCarousel` standalone with no
+video player nearby (How To sheet, exercise detail, program editor). Now
+passes `useApplicationAudioSession: false`, so narration creates and manages
+its own dedicated session and is audible everywhere `narrate` is on.
+
 ## v0.23.0
 
 Prompted by a comparison audit against a sibling app (Strata/quorum-ui, which

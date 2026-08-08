@@ -369,7 +369,17 @@ export function PanelCarousel({
     if (narratedIndexRef.current === idx) return;
     narratedIndexRef.current = idx;
     Speech.stop();
-    Speech.speak(resolvedSteps[idx].text, { rate: NARRATION_RATE, voice: preferredVoiceRef.current });
+    Speech.speak(resolvedSteps[idx].text, {
+      rate: NARRATION_RATE,
+      voice: preferredVoiceRef.current,
+      // iOS: without this, speech rides whatever audio session the REST of
+      // the app happens to have active — silently inaudible wherever nothing
+      // else (e.g. an expo-video player, even a muted one) has activated
+      // one. false makes expo-speech create and manage its own dedicated
+      // session, so narration is audible on its own, not just when a
+      // PanelCarousel happens to share a screen with a video player.
+      useApplicationAudioSession: false,
+    });
   }, [elapsedMs, narrate, resolvedSteps, isPlaying, active, muted, screenReaderEnabled, boundaries]);
 
   // Cuts narration off immediately on pause/background/mute/screen-reader,
