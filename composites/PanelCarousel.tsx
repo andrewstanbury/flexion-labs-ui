@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Image,
   LayoutChangeEvent,
@@ -12,15 +12,23 @@ import {
 } from 'react-native';
 import { useTheme } from '../UIProvider';
 
+const DEFAULT_INTERVAL_MS = 1800;
+
 // Auto-sizing horizontal pager for an ordered set of static images — e.g.
 // instructional panel frames stepping through an exercise, in place of a
-// video. Swipe to advance/go back; dots show position. Presentational only:
-// the app resolves each panel's URI (e.g. via useMediaUri) and passes the
-// plain ordered array in, so this stays free of app/network concerns.
+// video. Auto-advances on a timer by default, looping — like a video playing
+// hands-free, for following along mid-exercise when touching the screen
+// isn't an option. Still swipeable as a manual override (e.g. browsing a
+// catalogue). Presentational only: the app resolves each panel's URI (e.g.
+// via useMediaUri) and passes the plain ordered array in, so this stays free
+// of app/network concerns.
 export function PanelCarousel({
   uris,
   aspectRatio = 1,
   style,
+  autoPlay = true,
+  active = true,
+  intervalMs = DEFAULT_INTERVAL_MS,
   testID,
 }: {
   uris: string[];
@@ -30,9 +38,19 @@ export function PanelCarousel({
   // Overrides the default aspect-ratio sizing entirely (e.g. a fixed height
   // layout). Each image is measured to fill whatever this resolves to.
   style?: StyleProp<ViewStyle>;
+  // Advance through panels automatically, looping. On by default — a static
+  // sequence with no auto-advance isn't usable when the viewer can't touch
+  // the screen (mid-exercise). Manual swipe still works either way.
+  autoPlay?: boolean;
+  // false → pause auto-advance (e.g. backgrounded/off-screen). Mirrors the
+  // `active` prop on the video views this replaces.
+  active?: boolean;
+  // How long each panel stays on screen before advancing, in ms.
+  intervalMs?: number;
   testID?: string;
 }) {
   const theme = useTheme();
+  const scrollRef = useRef<ScrollView>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [index, setIndex] = useState(0);
 
@@ -50,12 +68,29 @@ export function PanelCarousel({
     [size.width, uris.length],
   );
 
+  // Loops back to panel 0 after the last one. Uses the functional setState
+  // form so a manual swipe in between ticks is respected — the next tick
+  // always advances from wherever the viewer (or the last tick) left it,
+  // rather than a stale closed-over index.
+  useEffect(() => {
+    if (!autoPlay || !active || uris.length < 2 || !size.width) return;
+    const id = setInterval(() => {
+      setIndex((current) => {
+        const next = (current + 1) % uris.length;
+        scrollRef.current?.scrollTo({ x: next * size.width, animated: true });
+        return next;
+      });
+    }, intervalMs);
+    return () => clearInterval(id);
+  }, [autoPlay, active, uris.length, size.width, intervalMs]);
+
   if (uris.length === 0) return null;
 
   return (
     <View testID={testID} onLayout={onLayout} style={style ?? { width: '100%', aspectRatio }}>
       {size.width > 0 && size.height > 0 && (
         <ScrollView
+          ref={scrollRef}
           horizontal
           pagingEnabled
           showsHorizontalScrollIndicator={false}

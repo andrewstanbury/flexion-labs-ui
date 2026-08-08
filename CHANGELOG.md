@@ -3,6 +3,19 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.20.5
+
+`PanelCarousel` auto-plays by default — steps through panels on a timer,
+looping, like a video played hands-free. A static image sequence with no
+auto-advance isn't usable mid-exercise, when the viewer can't touch the
+screen to swipe. New props: `autoPlay` (default `true`), `active` (default
+`true`, mirrors the video views this replaces — pauses the timer when
+backgrounded/off-screen), `intervalMs` (default 1800). Manual swipe still
+works as an override; the next auto-tick picks up from wherever it lands.
+
+**Additive, but changes default behaviour**: any existing `PanelCarousel`
+usage now auto-plays unless it explicitly passes `autoPlay={false}`.
+
 ## v0.20.4
 
 Two fixes, both caught from real use of the panel-carousel pilot:

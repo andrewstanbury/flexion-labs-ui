@@ -1,4 +1,4 @@
-import { fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 import { PanelCarousel } from '../PanelCarousel';
 
 describe('<PanelCarousel />', () => {
@@ -72,5 +72,66 @@ describe('<PanelCarousel />', () => {
     });
     const activeDot = getByTestId('carousel-dot-1');
     expect(activeDot.props.style.opacity).toBe(1);
+  });
+
+  describe('autoPlay — hands-free step-through', () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    it('advances to the next panel after intervalMs, by default', () => {
+      const { getByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg', 'c.jpg']} intervalMs={1000} testID="carousel" />,
+      );
+      fireEvent(getByTestId('carousel'), 'layout', {
+        nativeEvent: { layout: { width: 300, height: 300 } },
+      });
+      expect(getByTestId('carousel-dot-0').props.style.opacity).toBe(1);
+      act(() => jest.advanceTimersByTime(1000));
+      expect(getByTestId('carousel-dot-1').props.style.opacity).toBe(1);
+      expect(getByTestId('carousel-dot-0').props.style.opacity).toBe(0.6);
+    });
+
+    it('loops back to the first panel after the last', () => {
+      const { getByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg']} intervalMs={1000} testID="carousel" />,
+      );
+      fireEvent(getByTestId('carousel'), 'layout', {
+        nativeEvent: { layout: { width: 300, height: 300 } },
+      });
+      act(() => jest.advanceTimersByTime(1000)); // → panel 1
+      act(() => jest.advanceTimersByTime(1000)); // → loops back to panel 0
+      expect(getByTestId('carousel-dot-0').props.style.opacity).toBe(1);
+    });
+
+    it('never advances when autoPlay is false', () => {
+      const { getByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg']} autoPlay={false} intervalMs={1000} testID="carousel" />,
+      );
+      fireEvent(getByTestId('carousel'), 'layout', {
+        nativeEvent: { layout: { width: 300, height: 300 } },
+      });
+      act(() => jest.advanceTimersByTime(5000));
+      expect(getByTestId('carousel-dot-0').props.style.opacity).toBe(1);
+    });
+
+    it('pauses while inactive (e.g. backgrounded), same as the video views it replaces', () => {
+      const { getByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg']} active={false} intervalMs={1000} testID="carousel" />,
+      );
+      fireEvent(getByTestId('carousel'), 'layout', {
+        nativeEvent: { layout: { width: 300, height: 300 } },
+      });
+      act(() => jest.advanceTimersByTime(5000));
+      expect(getByTestId('carousel-dot-0').props.style.opacity).toBe(1);
+    });
+
+    it('a single panel never advances (nothing to advance to)', () => {
+      const { queryByTestId } = render(
+        <PanelCarousel uris={['a.jpg']} intervalMs={1000} testID="carousel" />,
+      );
+      act(() => jest.advanceTimersByTime(5000));
+      // No dots at all for a single panel — just confirms no crash/timer loop.
+      expect(queryByTestId('carousel-dot-0')).toBeNull();
+    });
   });
 });
