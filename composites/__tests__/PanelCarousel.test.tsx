@@ -155,6 +155,19 @@ describe('<PanelCarousel />', () => {
       expect(getByTestId('carousel-controls').props.pointerEvents).toBe('none');
     });
 
+    it('keeps the timeline visible even while the play button is hidden', () => {
+      // The timeline is a persistent progress bar, unlike the play button —
+      // it must never be inside the fading/hidden controls layer.
+      const { getByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg']} intervalMs={1000} testID="carousel" />,
+      );
+      layout(getByTestId('carousel'));
+      expect(getByTestId('carousel-controls').props.pointerEvents).toBe('none');
+      expect(getByTestId('carousel-timeline')).toBeTruthy();
+      act(() => jest.advanceTimersByTime(500));
+      expect(getByTestId('carousel-timeline-fill').props.style.width).toBe('25%');
+    });
+
     it('starts with controls visible when it does not auto-play', () => {
       const { getByTestId } = render(
         <PanelCarousel uris={['a.jpg', 'b.jpg']} autoPlay={false} testID="carousel" />,

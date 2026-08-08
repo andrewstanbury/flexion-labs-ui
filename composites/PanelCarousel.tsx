@@ -21,9 +21,11 @@ const CONTROLS_FADE_MS = 250;
 type Slot = 0 | 1;
 
 // Plays an ordered set of static images like a video would: a play/pause
-// button, a scrubbable timeline, controls that auto-hide during playback and
-// reappear on tap — as close to real video-player chrome as a sequence of
-// stills supports. For instructional panel frames stepping through an
+// button that auto-hides during playback and reappears on tap, plus a
+// scrubbable timeline that stays visible throughout (a persistent progress
+// bar, not part of the fading chrome) — as close to real video-player chrome
+// as a sequence of stills supports. For instructional panel frames stepping
+// through an
 // exercise, in place of a video, viewed hands-free (following along
 // mid-exercise isn't compatible with having to touch the screen to advance).
 // Plays through once and stops on the last panel — does not loop; tapping
@@ -324,6 +326,11 @@ export function PanelCarousel({
               onPress={handleContentTap}
               style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
             >
+              {/* Play/pause button only — fades with the rest of the chrome.
+                  The timeline (below) is intentionally NOT inside this layer:
+                  it stays visible and scrubbable throughout playback, same as
+                  a persistent video progress bar, rather than disappearing
+                  along with the play button. */}
               <Animated.View
                 testID={testID ? `${testID}-controls` : undefined}
                 pointerEvents={controlsVisible ? 'box-none' : 'none'}
@@ -336,56 +343,64 @@ export function PanelCarousel({
                   opacity: controlsOpacity,
                 }}
               >
-                  <View
-                    pointerEvents="box-none"
-                    style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
-                  >
-                    <Pressable
-                      testID={testID ? `${testID}-toggle` : undefined}
-                      onPress={togglePlay}
-                      accessibilityRole="button"
-                      accessibilityLabel={isPlaying ? 'Pause' : atEnd ? 'Replay' : 'Play'}
-                    >
-                      <View
-                        style={{
-                          width: 56,
-                          height: 56,
-                          borderRadius: 28,
-                          backgroundColor: 'rgba(0,0,0,0.45)',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        <Icon name={iconName} size="lg" color="inverse" />
-                      </View>
-                    </Pressable>
-                  </View>
-                  <View
-                    testID={testID ? `${testID}-timeline` : undefined}
-                    onLayout={onBarLayout}
-                    {...panResponder.panHandlers}
-                    style={{ height: 28, justifyContent: 'center', paddingHorizontal: 12 }}
+                <View
+                  pointerEvents="box-none"
+                  style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <Pressable
+                    testID={testID ? `${testID}-toggle` : undefined}
+                    onPress={togglePlay}
+                    accessibilityRole="button"
+                    accessibilityLabel={isPlaying ? 'Pause' : atEnd ? 'Replay' : 'Play'}
                   >
                     <View
                       style={{
-                        height: 3,
-                        borderRadius: 1.5,
-                        backgroundColor: 'rgba(255,255,255,0.35)',
-                        overflow: 'hidden',
+                        width: 56,
+                        height: 56,
+                        borderRadius: 28,
+                        backgroundColor: 'rgba(0,0,0,0.45)',
+                        alignItems: 'center',
+                        justifyContent: 'center',
                       }}
                     >
-                      <View
-                        testID={testID ? `${testID}-timeline-fill` : undefined}
-                        style={{
-                          height: 3,
-                          borderRadius: 1.5,
-                          backgroundColor: theme.accentStrong,
-                          width: `${progress * 100}%`,
-                        }}
-                      />
+                      <Icon name={iconName} size="lg" color="inverse" />
                     </View>
-                  </View>
+                  </Pressable>
+                </View>
               </Animated.View>
+              <View
+                testID={testID ? `${testID}-timeline` : undefined}
+                onLayout={onBarLayout}
+                {...panResponder.panHandlers}
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: 28,
+                  justifyContent: 'center',
+                  paddingHorizontal: 12,
+                }}
+              >
+                <View
+                  style={{
+                    height: 3,
+                    borderRadius: 1.5,
+                    backgroundColor: 'rgba(255,255,255,0.35)',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <View
+                    testID={testID ? `${testID}-timeline-fill` : undefined}
+                    style={{
+                      height: 3,
+                      borderRadius: 1.5,
+                      backgroundColor: theme.accentStrong,
+                      width: `${progress * 100}%`,
+                    }}
+                  />
+                </View>
+              </View>
             </Pressable>
           )}
         </>

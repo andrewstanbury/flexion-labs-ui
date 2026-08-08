@@ -3,6 +3,15 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.20.10
+
+- **Timeline is always visible.** It was inside the same fading layer as the
+  play/pause button (v0.20.9), so it disappeared along with it during
+  playback. Pulled out into its own always-rendered, always-scrubbable
+  overlay — a persistent progress bar, like the ambient timeline video
+  players keep up even when the rest of the chrome is hidden. Only the
+  play/pause button fades now.
+
 ## v0.20.9
 
 - **Controls fade in/out instead of popping.** The hide/reveal on tap (added
