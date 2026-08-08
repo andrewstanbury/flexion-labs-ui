@@ -3,6 +3,35 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.20.8
+
+Substantial rework, all three asked for together: no more flash between
+frames, controls that hide during playback like real video chrome, and a
+timeline.
+
+- **Seamless crossfade.** Root cause of the flash: opacity animated straight
+  from a source swap, so the fade started before the incoming frame had
+  actually decoded — it popped in partway through instead of dissolving.
+  Rewritten as a double-buffer: the next frame loads into the *other* slot at
+  opacity 0 (invisible), and the crossfade only starts once that image's own
+  `onLoad` fires, guaranteeing there's a fully-decoded frame to fade in from
+  the first tick of the animation.
+- **Controls auto-hide during playback, reveal on tap** — exactly like
+  native video chrome. Paused controls stay pinned up (there's no other way
+  back to play). `autoPlay={false}` now starts with controls visible.
+- **Timeline bar** — fill tracks elapsed playback (continuous, not
+  per-panel-step), tap or drag to seek to any panel. A seek is an instant
+  cut, not a crossfade — matches how scrubbing a real video works.
+- Playback clock rewritten to self-schedule each tick's own timer rather
+  than depending on a React re-render to reschedule the next one — the old
+  approach could silently drop ticks if renders didn't keep pace.
+
+Same prop surface (`autoPlay`, `active`, `intervalMs`, `style`,
+`aspectRatio`) — internal rewrite, not an API change. Drag-to-seek isn't
+unit tested (it's wired via a raw PanResponder, which depends on RN's native
+touch-history machinery no synthetic test event can supply) — verified
+manually; everything else the timeline computes is covered.
+
 ## v0.20.7
 
 `PanelCarousel` gets a play/pause control — a persistent tappable circle
