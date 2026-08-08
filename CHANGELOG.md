@@ -3,6 +3,18 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.20.6
+
+`PanelCarousel` no longer behaves like a slider — no swipe gesture, no page
+dots, no ScrollView. Frames now crossfade in place, and playback **stops on
+the last panel instead of looping** (a video that ends, not a GIF that
+repeats). Matches "identical to a video player" rather than a carousel: the
+viewer can't swipe mid-exercise anyway, so paging UI was never load-bearing,
+just visual noise that read as "slider" instead of "video."
+
+Same props as v0.20.5 (`autoPlay`, `active`, `intervalMs`, `style`,
+`aspectRatio`) — this is a rendering/interaction rewrite, not an API change.
+
 ## v0.20.5
 
 `PanelCarousel` auto-plays by default — steps through panels on a timer,

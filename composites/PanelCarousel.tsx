@@ -1,27 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  Image,
-  LayoutChangeEvent,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
-  ScrollView,
-  StyleProp,
-  StyleSheet,
-  View,
-  ViewStyle,
-} from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Image, LayoutChangeEvent, StyleProp, View, ViewStyle } from 'react-native';
 import { useTheme } from '../UIProvider';
 
 const DEFAULT_INTERVAL_MS = 1800;
+const FADE_MS = 400;
 
-// Auto-sizing horizontal pager for an ordered set of static images — e.g.
-// instructional panel frames stepping through an exercise, in place of a
-// video. Auto-advances on a timer by default, looping — like a video playing
-// hands-free, for following along mid-exercise when touching the screen
-// isn't an option. Still swipeable as a manual override (e.g. browsing a
-// catalogue). Presentational only: the app resolves each panel's URI (e.g.
-// via useMediaUri) and passes the plain ordered array in, so this stays free
-// of app/network concerns.
+// Plays an ordered set of static images like a video would — auto-advancing
+// on a timer with a crossfade between frames, no swipe gesture, no page
+// dots. For instructional panel frames stepping through an exercise, in
+// place of a video, viewed hands-free (following along mid-exercise isn't
+// compatible with having to touch the screen to advance). Plays through once
+// and stops on the last panel — does not loop. Presentational only: the app
+// resolves each panel's URI (e.g. via useMediaUri) and passes the plain
+// ordered array in, so this stays free of app/network concerns.
 export function PanelCarousel({
   uris,
   aspectRatio = 1,
@@ -38,9 +29,9 @@ export function PanelCarousel({
   // Overrides the default aspect-ratio sizing entirely (e.g. a fixed height
   // layout). Each image is measured to fill whatever this resolves to.
   style?: StyleProp<ViewStyle>;
-  // Advance through panels automatically, looping. On by default — a static
-  // sequence with no auto-advance isn't usable when the viewer can't touch
-  // the screen (mid-exercise). Manual swipe still works either way.
+  // Advance through panels automatically. On by default — a static sequence
+  // with no auto-advance isn't usable when the viewer can't touch the screen
+  // (mid-exercise).
   autoPlay?: boolean;
   // false → pause auto-advance (e.g. backgrounded/off-screen). Mirrors the
   // `active` prop on the video views this replaces.
@@ -50,86 +41,76 @@ export function PanelCarousel({
   testID?: string;
 }) {
   const theme = useTheme();
-  const scrollRef = useRef<ScrollView>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [index, setIndex] = useState(0);
+  const [prevIndex, setPrevIndex] = useState<number | null>(null);
+  const fade = useRef(new Animated.Value(1)).current;
 
-  const onLayout = useCallback((e: LayoutChangeEvent) => {
+  const onLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
     setSize({ width, height });
-  }, []);
+  };
 
-  const onMomentumScrollEnd = useCallback(
-    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      if (!size.width) return;
-      const next = Math.round(e.nativeEvent.contentOffset.x / size.width);
-      setIndex(Math.max(0, Math.min(next, uris.length - 1)));
-    },
-    [size.width, uris.length],
-  );
-
-  // Loops back to panel 0 after the last one. Uses the functional setState
-  // form so a manual swipe in between ticks is respected — the next tick
-  // always advances from wherever the viewer (or the last tick) left it,
-  // rather than a stale closed-over index.
+  // Reset to the first frame whenever the sequence itself changes (a
+  // different exercise's panels), not on every re-render.
   useEffect(() => {
-    if (!autoPlay || !active || uris.length < 2 || !size.width) return;
-    const id = setInterval(() => {
-      setIndex((current) => {
-        const next = (current + 1) % uris.length;
-        scrollRef.current?.scrollTo({ x: next * size.width, animated: true });
-        return next;
-      });
+    setIndex(0);
+    setPrevIndex(null);
+    fade.setValue(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uris.join('|')]);
+
+  // Advances once per tick, crossfading in the next frame; stops for good at
+  // the last panel rather than looping — this plays through once, like a
+  // video that ends, not a GIF that repeats.
+  useEffect(() => {
+    if (!autoPlay || !active || uris.length < 2) return;
+    if (index >= uris.length - 1) return;
+    const id = setTimeout(() => {
+      setPrevIndex(index);
+      setIndex(index + 1);
+      fade.setValue(0);
+      Animated.timing(fade, { toValue: 1, duration: FADE_MS, useNativeDriver: true }).start();
     }, intervalMs);
-    return () => clearInterval(id);
-  }, [autoPlay, active, uris.length, size.width, intervalMs]);
+    return () => clearTimeout(id);
+  }, [autoPlay, active, uris.length, index, intervalMs, fade]);
 
   if (uris.length === 0) return null;
 
   return (
     <View testID={testID} onLayout={onLayout} style={style ?? { width: '100%', aspectRatio }}>
       {size.width > 0 && size.height > 0 && (
-        <ScrollView
-          ref={scrollRef}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          onMomentumScrollEnd={onMomentumScrollEnd}
-          scrollEventThrottle={16}
-          testID={testID ? `${testID}-scroll` : undefined}
-        >
-          {uris.map((uri, i) => (
+        <>
+          {prevIndex !== null && (
             <Image
-              key={`${uri}-${i}`}
-              source={{ uri }}
-              style={{ width: size.width, height: size.height, backgroundColor: theme.surfaceMuted }}
+              testID={testID ? `${testID}-previous` : undefined}
+              source={{ uri: uris[prevIndex] }}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: theme.surfaceMuted,
+              }}
               resizeMode="contain"
             />
-          ))}
-        </ScrollView>
-      )}
-      {uris.length > 1 && (
-        <View
-          pointerEvents="none"
-          style={StyleSheet.absoluteFill}
-          className="items-center justify-end pb-3"
-        >
-          <View className="flex-row gap-1.5">
-            {uris.map((_, i) => (
-              <View
-                key={i}
-                testID={testID ? `${testID}-dot-${i}` : undefined}
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: 3,
-                  backgroundColor: i === index ? theme.accentStrong : theme.surfaceMuted,
-                  opacity: i === index ? 1 : 0.6,
-                }}
-              />
-            ))}
-          </View>
-        </View>
+          )}
+          <Animated.Image
+            testID={testID ? `${testID}-current` : undefined}
+            source={{ uri: uris[index] }}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: theme.surfaceMuted,
+              opacity: fade,
+            }}
+            resizeMode="contain"
+          />
+        </>
       )}
     </View>
   );
