@@ -13,9 +13,10 @@ import { Pressable } from '../primitives/Pressable';
 import { useTheme } from '../UIProvider';
 
 const DEFAULT_INTERVAL_MS = 1800;
-const FADE_MS = 300;
+const FADE_MS = 550;
 const TICK_MS = 100;
 const CONTROLS_AUTO_HIDE_MS = 2500;
+const REPLAY_AUTO_HIDE_MS = 800;
 const CONTROLS_FADE_MS = 250;
 
 type Slot = 0 | 1;
@@ -95,6 +96,12 @@ export function PanelCarousel({
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const barWidthRef = useRef(0);
   const dragStartXRef = useRef(0);
+  // Set right before a replay-triggered play starts, consumed by the
+  // auto-hide effect below to use REPLAY_AUTO_HIDE_MS instead of the normal
+  // CONTROLS_AUTO_HIDE_MS — after tapping replay the viewer just interacted
+  // with the button, so there's no need to keep it up as long as after a
+  // tap-to-reveal.
+  const fastHideRef = useRef(false);
 
   // Controls fade in/out rather than popping — same as native video chrome.
   // Kept mounted throughout (see the render below) so there's something to
@@ -126,6 +133,7 @@ export function PanelCarousel({
     activeSlotRef.current = 0;
     shownIndexRef.current = 0;
     pendingRef.current = null;
+    fastHideRef.current = false;
     setSlotUris([uris[0] ?? null, null]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uris.join('|')]);
@@ -205,7 +213,9 @@ export function PanelCarousel({
   useEffect(() => {
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     if (!controlsVisible || !isPlaying) return;
-    hideTimerRef.current = setTimeout(() => setControlsVisible(false), CONTROLS_AUTO_HIDE_MS);
+    const delay = fastHideRef.current ? REPLAY_AUTO_HIDE_MS : CONTROLS_AUTO_HIDE_MS;
+    fastHideRef.current = false;
+    hideTimerRef.current = setTimeout(() => setControlsVisible(false), delay);
     return () => {
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     };
@@ -221,6 +231,7 @@ export function PanelCarousel({
     if (!canPlay) return;
     if (!isPlaying && atEnd) {
       // Finished — replay from the first panel, same as a finished video.
+      fastHideRef.current = true;
       setElapsedMs(0);
       pendingRef.current = null;
       opacities[activeSlotRef.current].setValue(0);

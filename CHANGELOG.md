@@ -3,6 +3,16 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.20.11
+
+- **Slower, smoother crossfade** between panels — `FADE_MS` 300ms → 550ms;
+  the transition felt abrupt at the old speed.
+- **Controls hide faster after replay.** Tapping replay left the play button
+  up for the same 2500ms as a normal tap-to-reveal, which read as slow right
+  after the viewer just interacted with it. A replay tap now hides it after
+  800ms (`REPLAY_AUTO_HIDE_MS`) instead — every other auto-hide path is
+  unchanged.
+
 ## v0.20.10
 
 - **Timeline is always visible.** It was inside the same fading layer as the

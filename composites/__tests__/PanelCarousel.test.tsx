@@ -245,6 +245,19 @@ describe('<PanelCarousel />', () => {
       fireEvent.press(getByTestId('carousel-toggle')); // replay
       expect(getByTestId('carousel-slot-0').props.source.uri).toBe('a.jpg');
     });
+
+    it('hides the controls sooner after replay than the normal auto-hide delay', () => {
+      const { getByTestId, queryByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg']} intervalMs={1000} testID="carousel" />,
+      );
+      layout(getByTestId('carousel'));
+      advanceAndLoad(1000, queryByTestId, 'b.jpg'); // → b.jpg
+      act(() => jest.advanceTimersByTime(1000)); // finish playback
+      fireEvent.press(getByTestId('carousel-toggle')); // replay
+      expect(getByTestId('carousel-controls').props.pointerEvents).toBe('box-none');
+      act(() => jest.advanceTimersByTime(1000)); // well under the normal 2500ms hide delay
+      expect(getByTestId('carousel-controls').props.pointerEvents).toBe('none');
+    });
   });
 
   describe('timeline — progress reflects elapsed playback', () => {
