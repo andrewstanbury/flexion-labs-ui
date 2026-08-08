@@ -94,4 +94,66 @@ describe('<PanelCarousel />', () => {
       expect(getByTestId('carousel-current').props.source.uri).toBe('x.jpg');
     });
   });
+
+  describe('play/pause control — video-like, not a slider', () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    it('tapping pauses mid-sequence and playback stays put', () => {
+      const { getByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg', 'c.jpg']} intervalMs={1000} testID="carousel" />,
+      );
+      layout(getByTestId('carousel'));
+      fireEvent.press(getByTestId('carousel-toggle')); // pause on a.jpg
+      act(() => jest.advanceTimersByTime(5000));
+      expect(getByTestId('carousel-current').props.source.uri).toBe('a.jpg');
+    });
+
+    it('tapping again resumes from where it was paused, not from the start', () => {
+      const { getByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg', 'c.jpg']} intervalMs={1000} testID="carousel" />,
+      );
+      layout(getByTestId('carousel'));
+      act(() => jest.advanceTimersByTime(1000)); // → b.jpg
+      fireEvent.press(getByTestId('carousel-toggle')); // pause on b.jpg
+      act(() => jest.advanceTimersByTime(5000));
+      expect(getByTestId('carousel-current').props.source.uri).toBe('b.jpg');
+      fireEvent.press(getByTestId('carousel-toggle')); // resume
+      act(() => jest.advanceTimersByTime(1000));
+      expect(getByTestId('carousel-current').props.source.uri).toBe('c.jpg');
+    });
+
+    it('tapping after it finishes replays from the first panel', () => {
+      const { getByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg']} intervalMs={1000} testID="carousel" />,
+      );
+      layout(getByTestId('carousel'));
+      act(() => jest.advanceTimersByTime(1000)); // → b.jpg, then auto-stops
+      expect(getByTestId('carousel-current').props.source.uri).toBe('b.jpg');
+      fireEvent.press(getByTestId('carousel-toggle')); // replay
+      expect(getByTestId('carousel-current').props.source.uri).toBe('a.jpg');
+      act(() => jest.advanceTimersByTime(1000));
+      expect(getByTestId('carousel-current').props.source.uri).toBe('b.jpg');
+    });
+
+    it('starts paused when autoPlay is false, and tapping starts playback', () => {
+      const { getByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg']} autoPlay={false} intervalMs={1000} testID="carousel" />,
+      );
+      layout(getByTestId('carousel'));
+      act(() => jest.advanceTimersByTime(5000));
+      expect(getByTestId('carousel-current').props.source.uri).toBe('a.jpg');
+      fireEvent.press(getByTestId('carousel-toggle'));
+      act(() => jest.advanceTimersByTime(1000));
+      expect(getByTestId('carousel-current').props.source.uri).toBe('b.jpg');
+    });
+
+    it('has no toggle control for a single panel (nothing to play/pause)', () => {
+      const { getByTestId, queryByTestId } = render(
+        <PanelCarousel uris={['a.jpg']} testID="carousel" />,
+      );
+      layout(getByTestId('carousel'));
+      expect(queryByTestId('carousel-toggle')).toBeNull();
+    });
+  });
 });

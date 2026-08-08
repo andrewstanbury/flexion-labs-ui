@@ -3,6 +3,17 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.20.7
+
+`PanelCarousel` gets a play/pause control — a persistent tappable circle
+overlay, icon switching between play/pause/replay depending on state.
+Tapping while playing pauses in place; tapping while paused resumes from
+where it stopped (not a restart); tapping after it finishes replays from the
+first panel, same as a finished video. `autoPlay={false}` now starts paused
+rather than never playing at all — the button is how playback starts.
+
+Same prop surface as v0.20.6 — additive.
+
 ## v0.20.6
 
 `PanelCarousel` no longer behaves like a slider — no swipe gesture, no page

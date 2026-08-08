@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Image, LayoutChangeEvent, StyleProp, View, ViewStyle } from 'react-native';
+import { Icon } from '../primitives/Icon';
+import { Pressable } from '../primitives/Pressable';
 import { useTheme } from '../UIProvider';
 
 const DEFAULT_INTERVAL_MS = 1800;
@@ -10,9 +12,11 @@ const FADE_MS = 400;
 // dots. For instructional panel frames stepping through an exercise, in
 // place of a video, viewed hands-free (following along mid-exercise isn't
 // compatible with having to touch the screen to advance). Plays through once
-// and stops on the last panel — does not loop. Presentational only: the app
-// resolves each panel's URI (e.g. via useMediaUri) and passes the plain
-// ordered array in, so this stays free of app/network concerns.
+// and stops on the last panel — does not loop; tapping the play/pause button
+// after it stops replays from the first panel, same as a finished video.
+// Presentational only: the app resolves each panel's URI (e.g. via
+// useMediaUri) and passes the plain ordered array in, so this stays free of
+// app/network concerns.
 export function PanelCarousel({
   uris,
   aspectRatio = 1,
@@ -29,11 +33,11 @@ export function PanelCarousel({
   // Overrides the default aspect-ratio sizing entirely (e.g. a fixed height
   // layout). Each image is measured to fill whatever this resolves to.
   style?: StyleProp<ViewStyle>;
-  // Advance through panels automatically. On by default — a static sequence
-  // with no auto-advance isn't usable when the viewer can't touch the screen
-  // (mid-exercise).
+  // Start playing automatically. On by default — a static sequence with no
+  // auto-advance isn't usable when the viewer can't touch the screen
+  // (mid-exercise). The play/pause button always works either way.
   autoPlay?: boolean;
-  // false → pause auto-advance (e.g. backgrounded/off-screen). Mirrors the
+  // false → pause playback (e.g. backgrounded/off-screen). Mirrors the
   // `active` prop on the video views this replaces.
   active?: boolean;
   // How long each panel stays on screen before advancing, in ms.
@@ -44,6 +48,7 @@ export function PanelCarousel({
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [index, setIndex] = useState(0);
   const [prevIndex, setPrevIndex] = useState<number | null>(null);
+  const [isPlaying, setIsPlaying] = useState(autoPlay);
   const fade = useRef(new Animated.Value(1)).current;
 
   const onLayout = (e: LayoutChangeEvent) => {
@@ -57,15 +62,20 @@ export function PanelCarousel({
     setIndex(0);
     setPrevIndex(null);
     fade.setValue(1);
+    setIsPlaying(autoPlay);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uris.join('|')]);
 
-  // Advances once per tick, crossfading in the next frame; stops for good at
-  // the last panel rather than looping — this plays through once, like a
-  // video that ends, not a GIF that repeats.
+  // Advances once per tick, crossfading in the next frame. Stops for good at
+  // the last panel rather than looping — plays through once, like a video
+  // that ends, not a GIF that repeats — and flips isPlaying back to false so
+  // the button shows "play" (tapping it replays from the start).
   useEffect(() => {
-    if (!autoPlay || !active || uris.length < 2) return;
-    if (index >= uris.length - 1) return;
+    if (!isPlaying || !active || uris.length < 2) return;
+    if (index >= uris.length - 1) {
+      setIsPlaying(false);
+      return;
+    }
     const id = setTimeout(() => {
       setPrevIndex(index);
       setIndex(index + 1);
@@ -73,9 +83,23 @@ export function PanelCarousel({
       Animated.timing(fade, { toValue: 1, duration: FADE_MS, useNativeDriver: true }).start();
     }, intervalMs);
     return () => clearTimeout(id);
-  }, [autoPlay, active, uris.length, index, intervalMs, fade]);
+  }, [isPlaying, active, uris.length, index, intervalMs, fade]);
 
   if (uris.length === 0) return null;
+
+  const atEnd = index >= uris.length - 1;
+  const iconName = isPlaying ? 'pause' : atEnd ? 'refresh' : 'play';
+
+  const togglePlay = () => {
+    if (uris.length < 2) return;
+    if (!isPlaying && atEnd) {
+      // Finished — replay from the first panel, same as a finished video.
+      setPrevIndex(null);
+      setIndex(0);
+      fade.setValue(1);
+    }
+    setIsPlaying((playing) => !playing);
+  };
 
   return (
     <View testID={testID} onLayout={onLayout} style={style ?? { width: '100%', aspectRatio }}>
@@ -110,6 +134,36 @@ export function PanelCarousel({
             }}
             resizeMode="contain"
           />
+          {uris.length > 1 && (
+            <Pressable
+              testID={testID ? `${testID}-toggle` : undefined}
+              onPress={togglePlay}
+              accessibilityRole="button"
+              accessibilityLabel={isPlaying ? 'Pause' : atEnd ? 'Replay' : 'Play'}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <View
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 28,
+                  backgroundColor: 'rgba(0,0,0,0.45)',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Icon name={iconName} size="lg" color="inverse" />
+              </View>
+            </Pressable>
+          )}
         </>
       )}
     </View>
