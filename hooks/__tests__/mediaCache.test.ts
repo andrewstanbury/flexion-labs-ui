@@ -64,6 +64,7 @@ import {
   listCachedExerciseIds,
   cacheSizeBytes,
   CACHE_BYTE_LIMIT,
+  isExerciseCached,
 } from '../mediaCache';
 
 describe('mediaCache (in-memory FS backend)', () => {
@@ -145,6 +146,35 @@ describe('mediaCache (in-memory FS backend)', () => {
     it('returns an empty list when only thumbnails are cached', () => {
       seedFile('ex1-thumbnail.jpg', 10, 1);
       expect(listCachedExerciseIds()).toEqual([]);
+    });
+  });
+
+  describe('isExerciseCached — panel-image exercises', () => {
+    it('is false for a panel exercise with none of its panels downloaded', () => {
+      expect(isExerciseCached('ex1', false, false, 3)).toBe(false);
+    });
+
+    it('is false while only some panels are downloaded', () => {
+      seedFile('ex1-panel1.jpg', 10, 1);
+      seedFile('ex1-panel2.jpg', 10, 1);
+      expect(isExerciseCached('ex1', false, false, 3)).toBe(false);
+    });
+
+    it('is true once every panel is downloaded', () => {
+      seedFile('ex1-panel1.jpg', 10, 1);
+      seedFile('ex1-panel2.jpg', 10, 1);
+      seedFile('ex1-panel3.jpg', 10, 1);
+      expect(isExerciseCached('ex1', false, false, 3)).toBe(true);
+    });
+
+    it('still prefers video/preview over panels when both are present', () => {
+      seedFile('ex1-panel1.jpg', 10, 1);
+      // has_video true but the video itself isn't downloaded yet.
+      expect(isExerciseCached('ex1', true, false, 1)).toBe(false);
+    });
+
+    it('defaults panelCount to 0, matching pre-panel behaviour', () => {
+      expect(isExerciseCached('ex1', false, false)).toBe(false);
     });
   });
 });

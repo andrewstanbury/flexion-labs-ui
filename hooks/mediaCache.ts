@@ -159,9 +159,16 @@ export function isExerciseCached(
   exerciseId: string,
   hasVideo: boolean,
   hasPreview: boolean,
+  panelCount = 0,
 ): boolean {
   if (hasVideo) return isFileCached(exerciseId, 'video');
   if (hasPreview) return isFileCached(exerciseId, 'preview');
+  if (panelCount > 0) {
+    for (let i = 1; i <= panelCount; i++) {
+      if (!isFileCached(exerciseId, `panel${i}` as MediaFile)) return false;
+    }
+    return true;
+  }
   return false;
 }
 

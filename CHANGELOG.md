@@ -3,6 +3,15 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.20.1
+
+Fixes a bug introduced by v0.20.0 before it ever shipped in an app:
+`isExerciseCached` only checked `video`/`preview`, so a panel-only exercise
+would never show as "downloaded" in Settings → Downloads even after every
+panel image was cached. Added an optional `panelCount` 4th argument
+(default 0, existing callers unaffected) that checks every `panelN` file is
+present.
+
 ## v0.20.0
 
 Ordered instructional panel images (a video alternative) — new primitive plus
