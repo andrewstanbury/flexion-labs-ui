@@ -58,6 +58,7 @@ export * from './composites/SyncStatusDot';
 export * from './composites/SyncStatusBar';
 export * from './composites/SyncStatusShell';
 export * from './composites/ToastViewport';
+export * from './composites/PanelCarousel';
 
 // Shell
 export * from './shell/TabBar';

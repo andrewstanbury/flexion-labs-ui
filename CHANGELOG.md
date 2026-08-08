@@ -3,6 +3,25 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.20.0
+
+Ordered instructional panel images (a video alternative) — new primitive plus
+the media-file plumbing to fetch/download them.
+
+- **New `PanelCarousel`**: presentational horizontal pager for an ordered list
+  of image URIs, with a swipe-position dot indicator. Takes plain `uris:
+  string[]` — no exercise/network knowledge, matching the rest of this
+  package's data-in-props convention.
+- **`mediaFilesFor`**: now accepts an optional `panel_count`, appending
+  `panel1..panelN` (clamped to 1-6) after the existing thumbnail/preview/video
+  files, so panel images flow through the existing offline-download pipeline
+  for free.
+- **`MediaFile`**: extended with the new `panel1..panel6` values (additive —
+  existing `'thumbnail' | 'preview' | 'video'` usage is unaffected).
+
+**Additive — nothing changes until an app opts in** by passing `panel_count`
+and rendering `PanelCarousel`.
+
 ## v0.19.0
 
 Grouped list rows — the structural half of the Strata comparison, and the last
