@@ -27,7 +27,7 @@ const DEFAULT_HOLD_SECONDS = 2;
 // timeline/seek math stays fully deterministic (and testable without a real
 // speech engine); NARRATION_BUFFER_MS below adds extra margin on top.
 const WORDS_PER_MINUTE = 130;
-const NARRATION_BUFFER_MS = 600;
+const NARRATION_BUFFER_MS = 200;
 // Slightly slower than expo-speech's default (1.0) — a calmer, more natural
 // narrator cadence, closer to how someone would actually talk you through an
 // exercise than the clipped default TTS pace. Divides into the duration

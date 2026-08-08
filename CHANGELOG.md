@@ -3,6 +3,14 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.21.3
+
+- Shortened the silent gap between the narrator finishing and the panel
+  transitioning — `NARRATION_BUFFER_MS` 600ms → 200ms. This is pure safety
+  margin against the TTS engine running slightly longer than estimated, not
+  part of a step's promised `holdSeconds`, so it's the right thing to trim
+  when the pause itself (not the hold) feels too long.
+
 ## v0.21.2
 
 - Crossfade between panels is slower again — `FADE_MS` 550ms → 900ms.
