@@ -28,6 +28,19 @@ const DEFAULT_HOLD_SECONDS = 2;
 // speech engine); NARRATION_BUFFER_MS below adds extra margin on top.
 const WORDS_PER_MINUTE = 130;
 const NARRATION_BUFFER_MS = 600;
+// Slightly slower than expo-speech's default (1.0) — a calmer, more natural
+// narrator cadence, closer to how someone would actually talk you through an
+// exercise than the clipped default TTS pace. Divides into the duration
+// estimate below (a slower rate takes proportionally longer to finish) so
+// panel timing still accounts for it.
+const NARRATION_RATE = 0.92;
+// The generated panel frames are flat images on a solid white background —
+// fixed regardless of app theme, not derived from `theme.surfaceMuted` (a
+// gray that visibly seamed against them). Letterboxing under
+// resizeMode="contain" should blend into the frame's own background, not the
+// app's — matching the theme would just reintroduce the same mismatch in
+// dark mode instead of light mode.
+const PANEL_BACKGROUND_COLOR = '#FFFFFF';
 
 type Slot = 0 | 1;
 
@@ -73,12 +86,14 @@ function indexForElapsed(elapsedMs: number, boundaries: number[]): number {
 // Optional narration (`narrate`): reads each panel's step text aloud via
 // on-device TTS (expo-speech) as it becomes current, with a mute toggle
 // alongside play/pause. `steps` supplies real per-panel text + a minimum
-// hold time; omit it and placeholder text ("Step N of M. Hold for Ns.") is
-// generated instead, so the experience works before any real step content
-// exists. Either way, each panel's dwell time stretches to fit however long
-// its narration is estimated to take (never shrinks below `intervalMs` or
-// `holdSeconds`) — the point is following along hands-free without the
-// narrator getting cut off.
+// hold time; omit it and placeholder text ("Hold for Ns.") is generated
+// instead, so the experience works before any real step content exists.
+// Either way, each panel's dwell time = its narration's estimated length,
+// THEN its hold time — "hold for 2 seconds" means the panel stays up for 2
+// more seconds once the narrator finishes saying that, not that the 2
+// seconds elapsed while it was being said. (Never shrinks below
+// `intervalMs`.) The point is following along hands-free without the
+// narrator getting cut off, or the hold ending before it's said.
 export function PanelCarousel({
   uris,
   aspectRatio = 1,
@@ -132,16 +147,19 @@ export function PanelCarousel({
     return uris.map((_, i) => {
       const s = steps?.[i];
       const holdSeconds = s?.holdSeconds ?? DEFAULT_HOLD_SECONDS;
-      const text =
-        s?.text ?? `Step ${i + 1} of ${uris.length}. Hold for ${holdSeconds} second${holdSeconds === 1 ? '' : 's'}.`;
+      const text = s?.text ?? `Hold for ${holdSeconds} second${holdSeconds === 1 ? '' : 's'}.`;
       return { text, holdSeconds };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [narrate, steps ? JSON.stringify(steps) : null, uris.length]);
 
   // Cumulative panel-start times. Panel i's own dwell time is at least
-  // intervalMs, and — only when resolvedSteps is active — stretched to also
-  // fit its holdSeconds and (if narrating) its estimated narration length.
+  // intervalMs, and — only when resolvedSteps is active — stretched to fit
+  // its holdSeconds PLUS (when narrating) its estimated narration length —
+  // additive, not "whichever is longer": the hold is the time AFTER the
+  // narrator finishes speaking ("hold for 2 seconds" should mean the panel
+  // stays up 2 more seconds once that sentence is done, not that the 2
+  // seconds already elapsed while it was being said).
   const boundaries = useMemo(() => {
     const b = [0];
     for (let i = 0; i < uris.length; i++) {
@@ -149,8 +167,8 @@ export function PanelCarousel({
       if (resolvedSteps) {
         const { text, holdSeconds } = resolvedSteps[i];
         const holdMs = holdSeconds * 1000;
-        const narrationMs = narrate ? estimateSpeechMs(text) + NARRATION_BUFFER_MS : 0;
-        duration = Math.max(intervalMs, holdMs, narrationMs);
+        const narrationMs = narrate ? estimateSpeechMs(text) / NARRATION_RATE + NARRATION_BUFFER_MS : 0;
+        duration = Math.max(intervalMs, holdMs + narrationMs);
       }
       b.push(b[i] + duration);
     }
@@ -200,6 +218,28 @@ export function PanelCarousel({
   // the current index each tick so a given panel is only narrated once per
   // visit, not on every render while sitting on it.
   const narratedIndexRef = useRef(-1);
+  // Best available voice identifier, looked up once per mount (only when
+  // narrating). expo-speech's default voice is the flattest one available on
+  // most devices; an "Enhanced"-quality English voice, where the OS has one
+  // installed, sounds materially less robotic. undefined (never found, or
+  // lookup unsupported/failed) just falls back to the system default voice —
+  // narration still works, it's only the tone that's worse.
+  const preferredVoiceRef = useRef<string | undefined>(undefined);
+  const voiceLookupDoneRef = useRef(false);
+  useEffect(() => {
+    if (!narrate || voiceLookupDoneRef.current) return;
+    voiceLookupDoneRef.current = true;
+    Speech.getAvailableVoicesAsync()
+      .then((voices) => {
+        const enhanced = voices.find(
+          (v) => v.quality === Speech.VoiceQuality.Enhanced && v.language?.startsWith('en'),
+        );
+        preferredVoiceRef.current = enhanced?.identifier;
+      })
+      .catch(() => {
+        // No lookup support on this platform/OEM build — system default voice.
+      });
+  }, [narrate]);
 
   // Controls fade in/out rather than popping — same as native video chrome.
   // Kept mounted throughout (see the render below) so there's something to
@@ -303,7 +343,7 @@ export function PanelCarousel({
     if (narratedIndexRef.current === idx) return;
     narratedIndexRef.current = idx;
     Speech.stop();
-    Speech.speak(resolvedSteps[idx].text);
+    Speech.speak(resolvedSteps[idx].text, { rate: NARRATION_RATE, voice: preferredVoiceRef.current });
   }, [elapsedMs, narrate, resolvedSteps, isPlaying, active, muted, boundaries]);
 
   // Cuts narration off immediately on pause/background/mute, rather than
@@ -460,7 +500,7 @@ export function PanelCarousel({
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  backgroundColor: theme.surfaceMuted,
+                  backgroundColor: PANEL_BACKGROUND_COLOR,
                   opacity: opacities[slot],
                 }}
                 resizeMode="contain"

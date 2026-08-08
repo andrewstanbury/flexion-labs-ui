@@ -321,7 +321,7 @@ describe('<PanelCarousel />', () => {
         <PanelCarousel uris={['a.jpg', 'b.jpg']} narrate testID="carousel" />,
       );
       layout(getByTestId('carousel'));
-      expect(speak).toHaveBeenCalledWith('Step 1 of 2. Hold for 2 seconds.');
+      expect(speak).toHaveBeenCalledWith('Hold for 2 seconds.', expect.any(Object));
     });
 
     it('narrates real step text when steps is provided', () => {
@@ -337,7 +337,7 @@ describe('<PanelCarousel />', () => {
         />,
       );
       layout(getByTestId('carousel'));
-      expect(speak).toHaveBeenCalledWith('Raise both arms overhead');
+      expect(speak).toHaveBeenCalledWith('Raise both arms overhead', expect.any(Object));
     });
 
     it('narrates the next step once its panel becomes current', () => {
@@ -351,12 +351,33 @@ describe('<PanelCarousel />', () => {
         />,
       );
       layout(getByTestId('carousel'));
-      expect(speak).toHaveBeenCalledWith('First');
-      // Panel 0's dwell time is stretched slightly beyond intervalMs to fit
-      // "First"'s narration estimate — advance well past that, not exactly
-      // intervalMs, to avoid coupling this test to the internal estimate.
-      advanceAndLoad(2000, queryByTestId, 'b.jpg');
-      expect(speak).toHaveBeenCalledWith('Second');
+      expect(speak).toHaveBeenCalledWith('First', expect.any(Object));
+      // Panel 0's dwell time is "First"'s narration length THEN its 1s hold
+      // — comfortably past intervalMs alone. Advance well beyond either
+      // figure rather than an exact sum, to avoid coupling this test to the
+      // internal narration-estimate constants.
+      advanceAndLoad(3000, queryByTestId, 'b.jpg');
+      expect(speak).toHaveBeenCalledWith('Second', expect.any(Object));
+    });
+
+    it('holds for the full holdSeconds AFTER narration finishes, not concurrently with it', () => {
+      // holdSeconds alone (3s) would already have advanced by 3.5s if hold and
+      // narration ran concurrently ("whichever is longer") — this pins that
+      // they're additive: narration first, then the full hold on top of it.
+      const { getByTestId, queryByTestId } = render(
+        <PanelCarousel
+          uris={['a.jpg', 'b.jpg']}
+          narrate
+          intervalMs={500}
+          steps={[{ text: 'Go', holdSeconds: 3 }, { text: 'Second', holdSeconds: 1 }]}
+          testID="carousel"
+        />,
+      );
+      layout(getByTestId('carousel'));
+      act(() => jest.advanceTimersByTime(3500));
+      expect(isShowing(queryByTestId, 'b.jpg')).toBe(false);
+      advanceAndLoad(3000, queryByTestId, 'b.jpg'); // well past narration + the 3s hold
+      expect(isShowing(queryByTestId, 'b.jpg')).toBe(true);
     });
 
     it("stretches a panel's dwell time so a long narration isn't cut short", () => {
@@ -374,8 +395,8 @@ describe('<PanelCarousel />', () => {
       // Under plain intervalMs pacing this would already have advanced.
       act(() => jest.advanceTimersByTime(2000));
       expect(isShowing(queryByTestId, 'b.jpg')).toBe(false);
-      // Long enough to cover even a generous words-per-minute estimate.
-      act(() => jest.advanceTimersByTime(20000));
+      // Long enough to cover the narration estimate PLUS the 1s hold after it.
+      act(() => jest.advanceTimersByTime(30000));
       expect(queryByTestId('carousel-slot-0')?.props.source.uri === 'b.jpg' ||
         queryByTestId('carousel-slot-1')?.props.source.uri === 'b.jpg').toBe(true);
     });

@@ -26,6 +26,8 @@ jest.mock('expo-speech', () => ({
   speak: jest.fn(),
   stop: jest.fn(),
   isSpeakingAsync: jest.fn().mockResolvedValue(false),
+  getAvailableVoicesAsync: jest.fn().mockResolvedValue([]),
+  VoiceQuality: { Default: 'Default', Enhanced: 'Enhanced' },
 }));
 
 jest.mock('nativewind', () => ({

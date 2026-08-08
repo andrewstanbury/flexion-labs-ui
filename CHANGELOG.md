@@ -3,6 +3,25 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.21.1
+
+Refinements to v0.21.0's narration, all internal — no prop changes:
+
+- **More natural voice.** Looks up an "Enhanced"-quality English voice via
+  `Speech.getAvailableVoicesAsync()` on mount (once, only when narrating) and
+  passes it to `speak()`; falls back to the system default voice if none is
+  found. Also speaks at a slightly slower rate (0.92) — closer to how someone
+  would actually talk you through a hold than the clipped TTS default.
+- **Placeholder text simplified** — dropped the "Step N of M." prefix;
+  placeholder text is now just "Hold for Ns."
+- **Timing is now additive, not "whichever is longer."** A panel's dwell
+  time used to be `max(holdMs, narrationMs)` — if narration took longer than
+  the hold, the hold was effectively absorbed into it. It's now
+  `narrationMs + holdMs`: the narrator finishes the sentence, THEN the panel
+  holds for the full `holdSeconds` on top of that. "Hold for 2 seconds"
+  means 2 more seconds after the narrator says it, not 2 seconds total
+  including the time spent saying it.
+
 ## v0.21.0
 
 **PanelCarousel: optional narration.** New opt-in props, off by default —
