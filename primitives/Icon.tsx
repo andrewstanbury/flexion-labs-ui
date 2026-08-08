@@ -24,22 +24,20 @@ export type IconProps = {
   color?: ColorRole | string;
 };
 
+function resolveColor(c: ColorRole | string, t: ReturnType<typeof useTheme>): string {
+  switch (c) {
+    case 'primary':   return t.textPrimary;
+    case 'secondary': return t.textSecondary;
+    case 'muted':     return t.textMuted;
+    case 'accent':    return t.accent;
+    case 'danger':    return t.danger;
+    case 'inverse':   return t.surface;
+    default:          return c; // arbitrary raw color string (e.g. a hex value)
+  }
+}
+
 export function Icon({ name, size = 'md', color: c = 'primary' }: IconProps) {
   const t = useTheme();
   const pixelSize = typeof size === 'number' ? size : SIZES[size];
-  const color =
-    typeof c === 'string' && !(c in t)
-      ? c
-      : (() => {
-          switch (c) {
-            case 'primary':   return t.textPrimary;
-            case 'secondary': return t.textSecondary;
-            case 'muted':     return t.textMuted;
-            case 'accent':    return t.accent;
-            case 'danger':    return t.danger;
-            case 'inverse':   return t.surface;
-            default:          return t.textPrimary;
-          }
-        })();
-  return <Ionicons name={name} size={pixelSize} color={color} />;
+  return <Ionicons name={name} size={pixelSize} color={resolveColor(c, t)} />;
 }

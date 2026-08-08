@@ -3,6 +3,23 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.23.2
+
+**Fix: `Icon` rendered black for almost every color role, in both light and
+dark mode.** `color="primary"` (also the DEFAULT when no `color` prop is
+given at all), `"secondary"`, `"muted"`, and `"inverse"` all resolved to the
+literal role-name *string* instead of an actual color — Ionicons then
+received an invalid color and fell back to black. Root cause: the old logic
+decided "is this a role name or a raw color string?" by checking
+`!(c in t)` — true (raw-passthrough) for any string that isn't *literally* a
+theme object key. `"accent"`/`"danger"` happened to work because `t.accent`/
+`t.danger` are real keys; `"primary"`/`"secondary"`/`"muted"`/`"inverse"`
+aren't (the real keys are `textPrimary`/`textSecondary`/etc), so they fell
+through unresolved. No test existed to catch it — `primitives/Icon.tsx` had
+zero test coverage before this release. Now resolves via an explicit switch
+over the 6 declared roles (matching how `Text` already does it), falling
+through to raw-passthrough only for genuine custom color strings.
+
 ## v0.23.1
 
 **Fix: narration was silent on any screen without an active audio session.**
