@@ -3,6 +3,37 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.22.0
+
+**PanelCarousel: real VoiceOver/TalkBack support.** No prop changes — this
+changes existing runtime behavior for every current call site when a screen
+reader is active, not just narrating ones:
+
+- **Controls stay permanently visible under a screen reader**, never
+  auto-hide. `pointerEvents: 'none'` (how hidden controls are made
+  untappable) also blocks VoiceOver's own double-tap activation — the
+  sighted-user "tap to reveal" pattern made the play/pause and mute buttons
+  literally unreachable once hidden. The tap-area itself is dropped from the
+  accessibility tree in this state too, since there's nothing left for it to
+  reveal.
+- **On-device narration is suppressed** while a screen reader is running —
+  two voices talking over each other is worse than either alone, and each
+  control's own `accessibilityLabel` already covers the same ground.
+  (Detecting this is inherently async — `AccessibilityInfo.isScreenReaderEnabled()`
+  has no synchronous form — so the very first panel's narration can still
+  fire once in the brief window before detection resolves; it's cut off
+  immediately once detected, not merely prevented from starting.)
+- **Timeline is now a real `adjustable` accessibility control** —
+  `accessibilityValue` reports playback progress, and increment/decrement
+  actions jump a whole panel at a time (unlike drag-scrubbing, which tracks
+  the exact finger position), announcing the landing panel's text via
+  `AccessibilityInfo.announceForAccessibility` — the screen reader's own
+  channel, not the (suppressed) on-device narrator.
+- Crossfading image slots are marked `accessible={false}` (decorative —
+  narration/labels already convey the content; two "copies" of the same
+  image being separately focusable mid-crossfade was confusing, not
+  helpful).
+
 ## v0.21.4
 
 - New export: `PLACEHOLDER_EXERCISE_STEPS` (`lib/placeholderExerciseSteps.ts`)

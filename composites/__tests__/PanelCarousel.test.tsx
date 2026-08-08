@@ -1,9 +1,22 @@
 import { act, fireEvent, render } from '@testing-library/react-native';
+import { AccessibilityInfo } from 'react-native';
 import * as Speech from 'expo-speech';
 import { PanelCarousel } from '../PanelCarousel';
 
 const speak = Speech.speak as jest.Mock;
 const stop = Speech.stop as jest.Mock;
+
+// Screen-reader state defaults OFF for every test (via mockResolvedValue) —
+// individual tests override it to exercise the screen-reader-on behavior.
+// addEventListener's mock return must have a .remove() the component's
+// cleanup effect can call.
+function mockScreenReaderEnabled(enabled: boolean) {
+  jest.spyOn(AccessibilityInfo, 'isScreenReaderEnabled').mockResolvedValue(enabled);
+  jest
+    .spyOn(AccessibilityInfo, 'addEventListener')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .mockReturnValue({ remove: jest.fn() } as any);
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function layout(view: any) {
@@ -57,6 +70,7 @@ describe('<PanelCarousel />', () => {
   beforeEach(() => {
     jest.useFakeTimers();
     jest.clearAllMocks();
+    mockScreenReaderEnabled(false);
   });
   afterEach(() => jest.useRealTimers());
 
@@ -431,6 +445,83 @@ describe('<PanelCarousel />', () => {
       fireEvent.press(getByTestId('carousel-mute')); // unmute
       expect(getByTestId('carousel-mute').props.accessibilityLabel).toBe('Mute');
       expect(speak.mock.calls.length).toBeGreaterThan(callsWhileMuted); // re-narrates current step
+    });
+  });
+
+  describe('accessibility — VoiceOver/TalkBack', () => {
+    it('marks the crossfading images as decorative (not individually focusable)', () => {
+      const { getByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg']} testID="carousel" />,
+      );
+      layout(getByTestId('carousel'));
+      expect(getByTestId('carousel-slot-0').props.accessible).toBe(false);
+    });
+
+    it('exposes the timeline as an adjustable control with a working increment action', () => {
+      const { getByTestId, queryByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg', 'c.jpg']} intervalMs={1000} testID="carousel" />,
+      );
+      layout(getByTestId('carousel'));
+      const timeline = getByTestId('carousel-timeline');
+      expect(timeline.props.accessibilityRole).toBe('adjustable');
+      expect(timeline.props.accessibilityValue).toEqual({ min: 0, max: 100, now: 0 });
+      fireEvent(timeline, 'accessibilityAction', { nativeEvent: { actionName: 'increment' } });
+      expect(isShowing(queryByTestId, 'b.jpg')).toBe(true);
+      fireEvent(timeline, 'accessibilityAction', { nativeEvent: { actionName: 'increment' } });
+      expect(isShowing(queryByTestId, 'c.jpg')).toBe(true);
+      fireEvent(timeline, 'accessibilityAction', { nativeEvent: { actionName: 'decrement' } });
+      expect(isShowing(queryByTestId, 'b.jpg')).toBe(true);
+    });
+
+    it('pins controls permanently visible and never auto-hides them when a screen reader is on', async () => {
+      mockScreenReaderEnabled(true);
+      const { getByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg']} testID="carousel" />,
+      );
+      layout(getByTestId('carousel'));
+      await act(async () => {}); // flush isScreenReaderEnabled()
+      expect(getByTestId('carousel-controls').props.pointerEvents).toBe('box-none');
+      act(() => jest.advanceTimersByTime(10_000)); // well past the normal auto-hide delay
+      expect(getByTestId('carousel-controls').props.pointerEvents).toBe('box-none');
+    });
+
+    it('stops narration as soon as a screen reader is detected, and never speaks again', async () => {
+      // isScreenReaderEnabled() has no synchronous form — the very first
+      // panel's narration can fire once in the brief window before this
+      // resolves, same as it would on a real device. What's guaranteed
+      // (and tested here) is that it's cut off the instant we learn a
+      // screen reader is active, and never fires again after that.
+      mockScreenReaderEnabled(true);
+      const { getByTestId, queryByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg']} narrate intervalMs={1000} testID="carousel" />,
+      );
+      layout(getByTestId('carousel'));
+      await act(async () => {}); // flush isScreenReaderEnabled()
+      expect(stop).toHaveBeenCalled();
+      const callsAfterDetection = speak.mock.calls.length;
+      advanceAndLoad(1000, queryByTestId, 'b.jpg'); // into the next panel
+      expect(speak.mock.calls.length).toBe(callsAfterDetection);
+    });
+
+    it('announces the landing panel via the screen reader on increment, instead of speaking it', async () => {
+      mockScreenReaderEnabled(true);
+      const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility');
+      const { getByTestId } = render(
+        <PanelCarousel
+          uris={['a.jpg', 'b.jpg']}
+          narrate
+          steps={[{ text: 'First' }, { text: 'Second' }]}
+          testID="carousel"
+        />,
+      );
+      layout(getByTestId('carousel'));
+      await act(async () => {});
+      const callsBeforeIncrement = speak.mock.calls.length;
+      fireEvent(getByTestId('carousel-timeline'), 'accessibilityAction', {
+        nativeEvent: { actionName: 'increment' },
+      });
+      expect(announce).toHaveBeenCalledWith('Second');
+      expect(speak.mock.calls.length).toBe(callsBeforeIncrement); // the increment itself didn't speak
     });
   });
 });

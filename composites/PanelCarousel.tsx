@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AccessibilityInfo,
   Animated,
   GestureResponderEvent,
   PanResponder,
@@ -226,6 +227,31 @@ export function PanelCarousel({
   // narration still works, it's only the tone that's worse.
   const preferredVoiceRef = useRef<string | undefined>(undefined);
   const voiceLookupDoneRef = useRef(false);
+
+  // VoiceOver/TalkBack changes two things here: (1) our own on-device
+  // narration is suppressed — having it AND the screen reader both talking
+  // is worse than either alone, and VoiceOver reading each control's own
+  // accessibilityLabel already covers the same information; (2) controls
+  // stay permanently visible/interactive instead of auto-hiding, because
+  // pointerEvents:'none' (how hidden controls are made untappable) also
+  // blocks VoiceOver's own double-tap activation — the auto-hide/tap-to-
+  // reveal pattern is fundamentally a sighted-user affordance.
+  const [screenReaderEnabled, setScreenReaderEnabled] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    AccessibilityInfo.isScreenReaderEnabled().then((enabled) => {
+      if (mounted) setScreenReaderEnabled(enabled);
+    });
+    const sub = AccessibilityInfo.addEventListener('screenReaderChanged', setScreenReaderEnabled);
+    return () => {
+      mounted = false;
+      sub.remove();
+    };
+  }, []);
+  useEffect(() => {
+    if (screenReaderEnabled) setControlsVisible(true);
+  }, [screenReaderEnabled]);
+
   useEffect(() => {
     if (!narrate || voiceLookupDoneRef.current) return;
     voiceLookupDoneRef.current = true;
@@ -338,20 +364,20 @@ export function PanelCarousel({
   // rather than driven by this, so a slower-than-estimated read never gets cut
   // off mid-panel — it just means the estimate undershot for that one step.
   useEffect(() => {
-    if (!narrate || !resolvedSteps || !isPlaying || !active || muted) return;
+    if (!narrate || !resolvedSteps || !isPlaying || !active || muted || screenReaderEnabled) return;
     const idx = indexForElapsed(elapsedMs, boundaries);
     if (narratedIndexRef.current === idx) return;
     narratedIndexRef.current = idx;
     Speech.stop();
     Speech.speak(resolvedSteps[idx].text, { rate: NARRATION_RATE, voice: preferredVoiceRef.current });
-  }, [elapsedMs, narrate, resolvedSteps, isPlaying, active, muted, boundaries]);
+  }, [elapsedMs, narrate, resolvedSteps, isPlaying, active, muted, screenReaderEnabled, boundaries]);
 
-  // Cuts narration off immediately on pause/background/mute, rather than
-  // waiting for the utterance to finish on its own.
+  // Cuts narration off immediately on pause/background/mute/screen-reader,
+  // rather than waiting for the utterance to finish on its own.
   useEffect(() => {
     if (!narrate) return;
-    if (!isPlaying || !active || muted) Speech.stop();
-  }, [narrate, isPlaying, active, muted]);
+    if (!isPlaying || !active || muted || screenReaderEnabled) Speech.stop();
+  }, [narrate, isPlaying, active, muted, screenReaderEnabled]);
 
   const handleSlotLoad = (slot: Slot) => {
     const pending = pendingRef.current;
@@ -368,18 +394,19 @@ export function PanelCarousel({
   };
 
   // Auto-hides the controls a couple of seconds into playback, same as
-  // native video chrome; stays up while paused, or the whole time if the
-  // viewer never plays.
+  // native video chrome; stays up while paused, the whole time if the viewer
+  // never plays, or permanently under a screen reader (see screenReaderEnabled
+  // above — hidden controls would be unreachable, not just invisible).
   useEffect(() => {
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-    if (!controlsVisible || !isPlaying) return;
+    if (!controlsVisible || !isPlaying || screenReaderEnabled) return;
     const delay = fastHideRef.current ? REPLAY_AUTO_HIDE_MS : CONTROLS_AUTO_HIDE_MS;
     fastHideRef.current = false;
     hideTimerRef.current = setTimeout(() => setControlsVisible(false), delay);
     return () => {
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     };
-  }, [controlsVisible, isPlaying]);
+  }, [controlsVisible, isPlaying, screenReaderEnabled]);
 
   if (uris.length === 0) return null;
 
@@ -412,8 +439,10 @@ export function PanelCarousel({
 
   // Reveal if hidden. If already visible, hide only while actually playing —
   // paused controls stay pinned up (there's no other way back to play).
+  // No-op under a screen reader: controls are pinned visible there (see
+  // screenReaderEnabled above), so there's nothing to reveal/hide.
   const handleContentTap = () => {
-    if (!canPlay) return;
+    if (!canPlay || screenReaderEnabled) return;
     setControlsVisible((visible) => {
       if (!visible) return true;
       return !isPlaying;
@@ -434,22 +463,11 @@ export function PanelCarousel({
     });
   };
 
-  // Jumps straight to whatever panel the tapped/dragged position on the
-  // timeline corresponds to. A seek is an instant cut, not a crossfade —
-  // that's the expected feel for scrubbing (video players don't dissolve
-  // between frames while you drag either), and it's also simply correct:
-  // there's no "next" panel to preload/decode-then-fade toward, the target
-  // is wherever the viewer just pointed. Takes an X relative to the bar
-  // itself (locationX at touch-down, then tracked via gesture dx) rather
-  // than page-absolute coordinates + `.measure()` — one less native round
-  // trip, and `.measure()` is notorious for returning zeroes on the very
-  // first layout pass.
-  const seekToLocalX = (x: number) => {
-    const barWidth = barWidthRef.current;
-    if (barWidth <= 0) return;
-    const fraction = Math.max(0, Math.min(1, x / barWidth));
-    const targetMs = fraction * totalMs;
-    const targetIndex = indexForElapsed(targetMs, boundaries);
+  // Applies a seek's landing spot: which panel is now current (a hard cut,
+  // not a crossfade — shared by both the drag-scrub below and the
+  // accessibility increment/decrement action, which resolve targetIndex/
+  // targetMs differently but land the same way).
+  const applyTargetIndex = (targetIndex: number, targetMs: number) => {
     setIsPlaying(false);
     setControlsVisible(true);
     Speech.stop();
@@ -468,6 +486,38 @@ export function PanelCarousel({
     setElapsedMs(targetMs);
   };
 
+  // Jumps straight to whatever panel the tapped/dragged position on the
+  // timeline corresponds to. A seek is an instant cut, not a crossfade —
+  // that's the expected feel for scrubbing (video players don't dissolve
+  // between frames while you drag either), and it's also simply correct:
+  // there's no "next" panel to preload/decode-then-fade toward, the target
+  // is wherever the viewer just pointed. Takes an X relative to the bar
+  // itself (locationX at touch-down, then tracked via gesture dx) rather
+  // than page-absolute coordinates + `.measure()` — one less native round
+  // trip, and `.measure()` is notorious for returning zeroes on the very
+  // first layout pass.
+  const seekToLocalX = (x: number) => {
+    const barWidth = barWidthRef.current;
+    if (barWidth <= 0) return;
+    const fraction = Math.max(0, Math.min(1, x / barWidth));
+    const targetMs = fraction * totalMs;
+    applyTargetIndex(indexForElapsed(targetMs, boundaries), targetMs);
+  };
+
+  // The VoiceOver/TalkBack "adjustable" increment/decrement action — jumps a
+  // whole panel at a time (unlike the drag above, which tracks the exact
+  // finger position) and announces the landing panel's own text via the
+  // screen reader's own channel, not our suppressed on-device narrator (see
+  // screenReaderEnabled above — running both would talk over each other).
+  const seekToIndex = (targetIndex: number) => {
+    const clamped = Math.max(0, Math.min(targetIndex, uris.length - 1));
+    applyTargetIndex(clamped, boundaries[clamped]);
+    if (screenReaderEnabled) {
+      const label = resolvedSteps?.[clamped]?.text ?? `Panel ${clamped + 1} of ${uris.length}`;
+      AccessibilityInfo.announceForAccessibility(label);
+    }
+  };
+
   const onBarLayout = (e: { nativeEvent: { layout: { width: number } } }) => {
     barWidthRef.current = e.nativeEvent.layout.width;
   };
@@ -483,6 +533,12 @@ export function PanelCarousel({
       seekToLocalX(dragStartXRef.current + gesture.dx),
   });
 
+  const handleTimelineAccessibilityAction = (event: { nativeEvent: { actionName: string } }) => {
+    const current = indexForElapsed(elapsedMs, boundaries);
+    if (event.nativeEvent.actionName === 'increment') seekToIndex(current + 1);
+    else if (event.nativeEvent.actionName === 'decrement') seekToIndex(current - 1);
+  };
+
   return (
     <View testID={testID} onLayout={onLayout} style={style ?? { width: '100%', aspectRatio }}>
       {size.width > 0 && size.height > 0 && (
@@ -494,6 +550,11 @@ export function PanelCarousel({
                 testID={testID ? `${testID}-slot-${slot}` : undefined}
                 source={{ uri: slotUris[slot] as string }}
                 onLoad={() => handleSlotLoad(slot)}
+                // Decorative: narration/the timeline's own label already
+                // convey the content, and two crossfading copies of "the
+                // same image" both being screen-reader-focusable is
+                // confusing, not helpful.
+                accessible={false}
                 style={{
                   position: 'absolute',
                   top: 0,
@@ -511,6 +572,12 @@ export function PanelCarousel({
             <Pressable
               testID={testID ? `${testID}-tap-area` : undefined}
               onPress={handleContentTap}
+              // Pinned-visible controls under a screen reader make this
+              // tap-to-reveal surface meaningless — drop it from the
+              // accessibility tree so VoiceOver/TalkBack navigation goes
+              // straight to the actual controls instead of stopping on an
+              // unlabeled full-screen region first.
+              accessible={!screenReaderEnabled}
               style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
             >
               {/* Play/pause button only — fades with the rest of the chrome.
@@ -580,6 +647,15 @@ export function PanelCarousel({
                 testID={testID ? `${testID}-timeline` : undefined}
                 onLayout={onBarLayout}
                 {...panResponder.panHandlers}
+                accessible
+                accessibilityRole="adjustable"
+                accessibilityLabel="Playback progress"
+                accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}
+                accessibilityActions={[
+                  { name: 'increment', label: 'Next step' },
+                  { name: 'decrement', label: 'Previous step' },
+                ]}
+                onAccessibilityAction={handleTimelineAccessibilityAction}
                 style={{
                   position: 'absolute',
                   left: 0,
