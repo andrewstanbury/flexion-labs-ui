@@ -1,6 +1,4 @@
-import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createPersistedStore } from './createPersistedStore';
 
 // Collapsed/expanded state for the wide-screen left navigation rail, persisted
 // so a user's choice survives reloads. Mirrors useThemeStore's shape/pattern.
@@ -12,16 +10,8 @@ interface SidebarStore {
   setCollapsed: (collapsed: boolean) => void;
 }
 
-export const useSidebarStore = create<SidebarStore>()(
-  persist(
-    (set) => ({
-      collapsed: true,
-      toggle: () => set((s) => ({ collapsed: !s.collapsed })),
-      setCollapsed: (collapsed) => set({ collapsed }),
-    }),
-    {
-      name: 'sidebar-collapsed',
-      storage: createJSONStorage(() => AsyncStorage),
-    },
-  ),
-);
+export const useSidebarStore = createPersistedStore<SidebarStore>('sidebar-collapsed', (set) => ({
+  collapsed: true,
+  toggle: () => set((s) => ({ collapsed: !s.collapsed })),
+  setCollapsed: (collapsed) => set({ collapsed }),
+}));

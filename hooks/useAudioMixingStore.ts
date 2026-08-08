@@ -1,6 +1,4 @@
-import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createPersistedStore } from './createPersistedStore';
 
 // Whether playing an exercise video interrupts other audio (music, podcasts,
 // etc.). Default OFF — the video MIXES with background audio instead of pausing
@@ -13,15 +11,10 @@ interface AudioMixingStore {
   setInterruptBackgroundAudio: (v: boolean) => void;
 }
 
-export const useAudioMixingStore = create<AudioMixingStore>()(
-  persist(
-    (set) => ({
-      interruptBackgroundAudio: false,
-      setInterruptBackgroundAudio: (interruptBackgroundAudio) => set({ interruptBackgroundAudio }),
-    }),
-    {
-      name: 'audio-mixing-preference',
-      storage: createJSONStorage(() => AsyncStorage),
-    },
-  ),
+export const useAudioMixingStore = createPersistedStore<AudioMixingStore>(
+  'audio-mixing-preference',
+  (set) => ({
+    interruptBackgroundAudio: false,
+    setInterruptBackgroundAudio: (interruptBackgroundAudio) => set({ interruptBackgroundAudio }),
+  }),
 );

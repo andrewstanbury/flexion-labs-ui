@@ -3,6 +3,48 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.23.0
+
+Prompted by a comparison audit against a sibling app (Strata/quorum-ui, which
+was itself originally adapted from this package's own architecture) plus an
+independent look at where client and practitioner had drifted from each
+other. Four additions:
+
+- **`createPersistedStore(name, initializer, options?)`** — generic
+  Zustand+persist+AsyncStorage factory. Every persisted store in this package
+  (`useThemeStore`, `useSidebarStore`, `useAudioMixingStore`,
+  `useFeatureFlagsStore`) now uses it instead of hand-rolled boilerplate; both
+  apps carry ~8 more bespoke stores each that are natural follow-up
+  migrations. Returns a genuine Zustand store (subscribable, selectable,
+  readable outside React via `.getState()`) — deliberately not a
+  `useState`-backed hook, which loses that.
+- **`AppLockToggle` + `createAppLockStore(defaultEnabled)`** — lifted out of
+  near-duplicate copies in both apps. The store is a factory (not a
+  singleton) because the right default genuinely differs per app (client:
+  off; practitioner: on, since it caches identifiable client data on-device)
+  — everything else was identical. The component takes `enabled`/
+  `setEnabled`/`copy` as props rather than owning a store or hardcoded
+  strings, staying decoupled from any one app's i18n. New peer dependency:
+  `expo-local-authentication`.
+- **`IconBubble`** — lifted from client (practitioner had no equivalent at
+  all).
+- **`NavigationSection` + `createNavOrderStore(name, allKeys, alwaysVisible)`
+  + `canHideNavTab`** — promotes what used to be two separate dev-only,
+  visibility-only "nav flags" prototyping tools into a real, always-on
+  end-user feature: reorder (arrow buttons, not drag-and-drop — this package
+  has no reanimated dependency, deliberately) AND show/hide each tab.
+  `alwaysVisible` lets each app protect whichever tab it can't afford to let
+  someone hide (e.g. a patient app's primary logging tab) while everything
+  else stays freely customizable.
+
+`useDownloadStore`/`useDownloadManifest` were investigated for the same
+treatment and deliberately NOT unified: both have genuinely diverged for
+app-specific reasons (client's one-time `mediaResetDone` migration flag;
+practitioner's ad-hoc `library` tracking for catalogue saves outside assigned
+programs) with different persisted `version`/`migrate` histories already on
+real devices — forcing them into one shared store risked corrupting an
+already-migrated user's data for no real benefit. Left as-is.
+
 ## v0.22.0
 
 **PanelCarousel: real VoiceOver/TalkBack support.** No prop changes — this

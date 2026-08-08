@@ -12,6 +12,7 @@ export * from './lib/secureKeyValueStorage';
 export * from './lib/placeholderExerciseSteps';
 
 // Hooks
+export * from './hooks/createPersistedStore';
 export * from './hooks/useThemeStore';
 export * from './hooks/useIsDark';
 export * from './hooks/useIsWide';
@@ -19,6 +20,8 @@ export * from './hooks/useSidebarStore';
 export * from './hooks/useTabBarPadding';
 export * from './hooks/useTabBarHeightStore';
 export * from './hooks/useAudioMixingStore';
+export * from './hooks/useAppLockStore';
+export * from './hooks/useNavOrderStore';
 export * from './hooks/useFeatureFlagsStore';
 export * from './hooks/useHaptic';
 export * from './hooks/useToastStore';
@@ -53,6 +56,9 @@ export * from './composites/ToggleRow';
 export * from './composites/EmptyState';
 export * from './composites/StatusScreen';
 export * from './composites/AuthScreenShell';
+export * from './composites/AppLockToggle';
+export * from './composites/IconBubble';
+export * from './composites/NavigationSection';
 export * from './composites/StorageBar';
 export * from './composites/OfflineBanner';
 export * from './composites/SyncStatusDot';

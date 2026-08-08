@@ -30,6 +30,14 @@ jest.mock('expo-speech', () => ({
   VoiceQuality: { Default: 'Default', Enhanced: 'Enhanced' },
 }));
 
+// No biometric hardware under jest — AppLockToggle's tests control these
+// return values per-test via jest.spyOn/mockResolvedValue.
+jest.mock('expo-local-authentication', () => ({
+  hasHardwareAsync: jest.fn().mockResolvedValue(true),
+  isEnrolledAsync: jest.fn().mockResolvedValue(true),
+  authenticateAsync: jest.fn().mockResolvedValue({ success: true }),
+}));
+
 jest.mock('nativewind', () => ({
   styled: (C: any) => C,
   useColorScheme: () => ({ colorScheme: 'light', setColorScheme: jest.fn() }),

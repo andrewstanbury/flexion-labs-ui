@@ -1,6 +1,4 @@
-import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createPersistedStore } from './createPersistedStore';
 
 // Shared theme preference, persisted per app under the same key. Both the
 // patient and practitioner apps drive light/dark/system from this store.
@@ -11,15 +9,7 @@ interface ThemeStore {
   setTheme: (theme: ThemePreference) => void;
 }
 
-export const useThemeStore = create<ThemeStore>()(
-  persist(
-    (set) => ({
-      theme: 'system',
-      setTheme: (theme) => set({ theme }),
-    }),
-    {
-      name: 'theme-preference',
-      storage: createJSONStorage(() => AsyncStorage),
-    },
-  ),
-);
+export const useThemeStore = createPersistedStore<ThemeStore>('theme-preference', (set) => ({
+  theme: 'system',
+  setTheme: (theme) => set({ theme }),
+}));

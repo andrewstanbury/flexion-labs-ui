@@ -55,6 +55,11 @@ breaking release across both apps.
   (`mediaFiles`, `mediaFileName`, `mediaCache`, `mediaApi`, `downloadMedia`,
   `useMediaUri`, `prefetchPolicy`, `useDownloadProgress`, `useDownloadLedger`,
   `listCachedExerciseIds`). See `index.ts` (authoritative) for the exact set.
+  As of v0.23.0: `createPersistedStore` (generic Zustand+persist+AsyncStorage
+  factory — prefer this over hand-rolling a new `create(persist(...))` block),
+  `createAppLockStore` (each app supplies its own default), `createNavOrderStore`
+  + `canHideNavTab` (persisted nav-tab order/visibility, generic over the
+  app's own tab-key union).
 - **Primitives** (`primitives/`): `Pressable`, `Text`, `Button`, `Input`,
   `Card`, `Icon`, `Screen`, `Stack`.
 - **Composites** (`composites/`): `FormField`, `SectionHeader`, `ListItem`,
@@ -63,9 +68,17 @@ breaking release across both apps.
   `SyncStatusBar`, `SyncStatusShell`, `PanelCarousel` (+ `PanelStep` type —
   video-like player for an ordered set of static panel images; optional
   `narrate`/`steps` props add on-device TTS narration via `expo-speech`, a
-  peer dependency as of v0.21.0). This list has drifted behind `composites/`
-  before (see `index.ts` for the authoritative set) — `PanelCarousel` is
-  called out because its peer dependency is easy to miss when repointing.
+  peer dependency as of v0.21.0), `IconBubble`, `AppLockToggle` (+
+  `AppLockCopy` type — pairs with `createAppLockStore`; takes `enabled`/
+  `setEnabled`/`copy` as props rather than owning a store or hardcoded
+  strings, so it stays decoupled from any one app's i18n), `NavigationSection`
+  (+ `NavSectionTab` type — pairs with `createNavOrderStore`; arrow-button
+  reorder, not drag-and-drop — see the peer-dependency note below).
+  This list has drifted behind `composites/` before (see `index.ts` for the
+  authoritative set) — call-outs above exist because their peer dependencies
+  are easy to miss when repointing: `PanelCarousel` needs `expo-speech`,
+  `AppLockToggle` needs `expo-local-authentication` (both peer deps as of
+  their respective versions — v0.21.0 and v0.23.0).
 - **Shell** (`shell/`): `TabBar`, `Header`, `BackButton`, `Modal`,
   `KeyboardScreen`.
 

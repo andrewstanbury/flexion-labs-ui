@@ -1,6 +1,4 @@
-import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createPersistedStore } from './createPersistedStore';
 
 // On-device feature flags: a keyed map of booleans, persisted per device.
 //
@@ -22,20 +20,14 @@ interface FeatureFlagsStore {
   reset: () => void;
 }
 
-export const useFeatureFlagsStore = create<FeatureFlagsStore>()(
-  persist(
-    (set) => ({
-      overrides: {},
-      setFlag: (id, value) =>
-        set((s) => ({ overrides: { ...s.overrides, [id]: value } })),
-      reset: () => set({ overrides: {} }),
-    }),
-    {
-      name: 'feature-flags',
-      storage: createJSONStorage(() => AsyncStorage),
-      version: 1,
-    },
-  ),
+export const useFeatureFlagsStore = createPersistedStore<FeatureFlagsStore>(
+  'feature-flags',
+  (set) => ({
+    overrides: {},
+    setFlag: (id, value) => set((s) => ({ overrides: { ...s.overrides, [id]: value } })),
+    reset: () => set({ overrides: {} }),
+  }),
+  { version: 1 },
 );
 
 /**
