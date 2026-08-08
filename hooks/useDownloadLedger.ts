@@ -24,6 +24,7 @@ export interface DownloadLedgerEntry {
   name_en_us?: string;
   has_video?: boolean;
   has_preview?: boolean;
+  panel_count?: number;
   updatedAt: number;
 }
 

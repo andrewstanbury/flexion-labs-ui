@@ -22,6 +22,17 @@ describe('<PanelCarousel />', () => {
     ]);
   });
 
+  it('never crops the image — contain, not cover, so the whole panel is visible', () => {
+    const { getByTestId, UNSAFE_getAllByType } = render(
+      <PanelCarousel uris={['a.jpg']} testID="carousel" />,
+    );
+    fireEvent(getByTestId('carousel'), 'layout', {
+      nativeEvent: { layout: { width: 300, height: 300 } },
+    });
+    const [image] = UNSAFE_getAllByType(require('react-native').Image);
+    expect(image.props.resizeMode).toBe('contain');
+  });
+
   it('shows no dots for a single image', () => {
     const { getByTestId, queryByTestId } = render(
       <PanelCarousel uris={['a.jpg']} testID="carousel" />,

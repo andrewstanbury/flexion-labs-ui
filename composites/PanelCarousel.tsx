@@ -67,8 +67,8 @@ export function PanelCarousel({
             <Image
               key={`${uri}-${i}`}
               source={{ uri }}
-              style={{ width: size.width, height: size.height }}
-              resizeMode="cover"
+              style={{ width: size.width, height: size.height, backgroundColor: theme.surfaceMuted }}
+              resizeMode="contain"
             />
           ))}
         </ScrollView>

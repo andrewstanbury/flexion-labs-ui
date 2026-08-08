@@ -3,6 +3,21 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.20.4
+
+Two fixes, both caught from real use of the panel-carousel pilot:
+
+- **`PanelCarousel` no longer crops.** Was `resizeMode="cover"`, which fills
+  the frame by cropping whatever overflows — since panel images are portrait
+  and most containers aren't, this cropped the top/bottom off every panel.
+  Now `"contain"` (whole image always visible, letterboxed against
+  `theme.surfaceMuted` if the aspect ratios don't match) — plus a regression
+  test pinning it.
+- **`DownloadLedgerEntry` gets `panel_count`.** Missed in v0.20.2's
+  `DownloadItem` pass — the ledger is a separate persisted type that
+  `record()` writes into, and without this field a panel-only exercise's
+  downloaded-state label would silently drop back to defaults.
+
 ## v0.20.3
 
 `PanelCarousel` gains an optional `style` prop, overriding the default

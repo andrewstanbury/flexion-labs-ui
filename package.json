@@ -1,6 +1,6 @@
 {
   "name": "@flexion-labs/ui",
-  "version": "0.20.3",
+  "version": "0.20.4",
   "description": "Shared design system (components, tokens, theme) for the Flexion Labs client and practitioner apps.",
   "license": "UNLICENSED",
   "private": false,
