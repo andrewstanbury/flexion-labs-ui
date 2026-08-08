@@ -3,6 +3,13 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.20.2
+
+`DownloadItem` gets an optional `panel_count`. Without it, `runMediaDownloads`
+(auto-download + manual download) had no way to know a panel-only exercise
+had anything to fetch at all — it calls `mediaFilesFor(item)` directly with
+whatever shape the caller passes.
+
 ## v0.20.1
 
 Fixes a bug introduced by v0.20.0 before it ever shipped in an app:

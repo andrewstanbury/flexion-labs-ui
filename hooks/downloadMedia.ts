@@ -9,6 +9,7 @@ export interface DownloadItem {
   exerciseId: string;
   has_video: boolean;
   has_preview: boolean;
+  panel_count?: number;
   name_en?: string;
   name_en_us?: string;
 }

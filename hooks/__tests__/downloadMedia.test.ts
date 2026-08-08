@@ -30,6 +30,20 @@ describe('runMediaDownloads', () => {
     expect(downloadToCache).toHaveBeenCalledTimes(2);
   });
 
+  it('fetches thumbnail + every panel for a panel-only exercise', async () => {
+    const fetchSignedUrl = jest.fn(() => Promise.resolve({ signedUrl: 'https://signed' }));
+    configureMediaApi({ fetchSignedUrl });
+    await runMediaDownloads([
+      { exerciseId: 'ex1', has_video: false, has_preview: false, panel_count: 3 },
+    ]);
+    expect(fetchSignedUrl).toHaveBeenCalledWith('ex1', 'thumbnail');
+    expect(fetchSignedUrl).toHaveBeenCalledWith('ex1', 'panel1');
+    expect(fetchSignedUrl).toHaveBeenCalledWith('ex1', 'panel2');
+    expect(fetchSignedUrl).toHaveBeenCalledWith('ex1', 'panel3');
+    expect(fetchSignedUrl).not.toHaveBeenCalledWith('ex1', 'panel4');
+    expect(downloadToCache).toHaveBeenCalledTimes(4);
+  });
+
   it('skips files already cached', async () => {
     (isFileCached as jest.Mock).mockReturnValue(true);
     const fetchSignedUrl = jest.fn(() => Promise.resolve({ signedUrl: 'https://signed' }));
