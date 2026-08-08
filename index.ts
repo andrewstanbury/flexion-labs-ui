@@ -9,6 +9,7 @@ export * from './lib/formatBytes';
 export * from './lib/describeBackend';
 export * from './lib/appLockLogic';
 export * from './lib/secureKeyValueStorage';
+export * from './lib/placeholderExerciseSteps';
 
 // Hooks
 export * from './hooks/useThemeStore';

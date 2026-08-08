@@ -3,6 +3,15 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.21.4
+
+- New export: `PLACEHOLDER_EXERCISE_STEPS` (`lib/placeholderExerciseSteps.ts`)
+  — the hand-written placeholder narration for the two exercises the
+  video-to-image pipeline has processed so far, lifted out of the client app
+  so every `PanelCarousel` caller in both apps narrates identically instead
+  of drifting between per-app copies. TEMPORARY: goes away once real
+  per-panel step text lives in the exercise catalogue itself.
+
 ## v0.21.3
 
 - Shortened the silent gap between the narrator finishing and the panel
