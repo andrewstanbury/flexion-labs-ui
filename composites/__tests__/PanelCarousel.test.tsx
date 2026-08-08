@@ -41,6 +41,13 @@ describe('<PanelCarousel />', () => {
     expect(getByTestId('carousel-dot-2')).toBeTruthy();
   });
 
+  it('uses a custom style over the default aspectRatio sizing when passed', () => {
+    const { getByTestId } = render(
+      <PanelCarousel uris={['a.jpg']} style={{ width: '100%', height: 240 }} testID="carousel" />,
+    );
+    expect(getByTestId('carousel').props.style).toEqual({ width: '100%', height: 240 });
+  });
+
   it('advances the active dot on swipe', () => {
     const { getByTestId } = render(<PanelCarousel uris={['a.jpg', 'b.jpg', 'c.jpg']} testID="carousel" />);
     fireEvent(getByTestId('carousel'), 'layout', {

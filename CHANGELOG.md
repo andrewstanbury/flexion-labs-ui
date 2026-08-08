@@ -3,6 +3,13 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.20.3
+
+`PanelCarousel` gains an optional `style` prop, overriding the default
+`width:'100%', aspectRatio` container sizing entirely (e.g. a fixed-height
+layout). Images now measure both width *and* height off the container (was
+width-only, assuming aspect-ratio sizing), so it works correctly either way.
+
 ## v0.20.2
 
 `DownloadItem` gets an optional `panel_count`. Without it, `runMediaDownloads`

@@ -5,8 +5,10 @@ import {
   NativeScrollEvent,
   NativeSyntheticEvent,
   ScrollView,
+  StyleProp,
   StyleSheet,
   View,
+  ViewStyle,
 } from 'react-native';
 import { useTheme } from '../UIProvider';
 
@@ -18,34 +20,41 @@ import { useTheme } from '../UIProvider';
 export function PanelCarousel({
   uris,
   aspectRatio = 1,
+  style,
   testID,
 }: {
   uris: string[];
+  // Only used to size the default container (width:'100%', aspectRatio) —
+  // ignored once `style` is passed.
   aspectRatio?: number;
+  // Overrides the default aspect-ratio sizing entirely (e.g. a fixed height
+  // layout). Each image is measured to fill whatever this resolves to.
+  style?: StyleProp<ViewStyle>;
   testID?: string;
 }) {
   const theme = useTheme();
-  const [containerWidth, setContainerWidth] = useState(0);
+  const [size, setSize] = useState({ width: 0, height: 0 });
   const [index, setIndex] = useState(0);
 
   const onLayout = useCallback((e: LayoutChangeEvent) => {
-    setContainerWidth(e.nativeEvent.layout.width);
+    const { width, height } = e.nativeEvent.layout;
+    setSize({ width, height });
   }, []);
 
   const onMomentumScrollEnd = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      if (!containerWidth) return;
-      const next = Math.round(e.nativeEvent.contentOffset.x / containerWidth);
+      if (!size.width) return;
+      const next = Math.round(e.nativeEvent.contentOffset.x / size.width);
       setIndex(Math.max(0, Math.min(next, uris.length - 1)));
     },
-    [containerWidth, uris.length],
+    [size.width, uris.length],
   );
 
   if (uris.length === 0) return null;
 
   return (
-    <View testID={testID} onLayout={onLayout} style={{ width: '100%', aspectRatio }}>
-      {containerWidth > 0 && (
+    <View testID={testID} onLayout={onLayout} style={style ?? { width: '100%', aspectRatio }}>
+      {size.width > 0 && size.height > 0 && (
         <ScrollView
           horizontal
           pagingEnabled
@@ -58,7 +67,7 @@ export function PanelCarousel({
             <Image
               key={`${uri}-${i}`}
               source={{ uri }}
-              style={{ width: containerWidth, aspectRatio }}
+              style={{ width: size.width, height: size.height }}
               resizeMode="cover"
             />
           ))}
