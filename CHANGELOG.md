@@ -3,6 +3,10 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.21.2
+
+- Crossfade between panels is slower again — `FADE_MS` 550ms → 900ms.
+
 ## v0.21.1
 
 Refinements to v0.21.0's narration, all internal — no prop changes:

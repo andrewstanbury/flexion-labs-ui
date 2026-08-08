@@ -14,7 +14,7 @@ import { Pressable } from '../primitives/Pressable';
 import { useTheme } from '../UIProvider';
 
 const DEFAULT_INTERVAL_MS = 1800;
-const FADE_MS = 550;
+const FADE_MS = 900;
 const TICK_MS = 100;
 const CONTROLS_AUTO_HIDE_MS = 2500;
 const REPLAY_AUTO_HIDE_MS = 800;
