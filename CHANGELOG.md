@@ -3,6 +3,36 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.24.0
+
+**Breaking: `PLACEHOLDER_EXERCISE_STEPS` is gone, replaced by `toPanelSteps()`.**
+
+The placeholder hard-coded panel narration for two exercise ids (115708 and
+17944) because the pipeline had no way to supply it. It does now: narration is
+generated alongside the panels, approved by a practitioner holding
+`content_reviewer`, promoted onto the exercise, and returned by core-go on
+`GET /api/private/exercises/{id}`. Every other exercise had been narrating
+"Hold for N seconds."
+
+`toPanelSteps(narration)` adapts that API field (`string[]`, one line per panel,
+in panel order) into the `steps` shape `PanelCarousel` already consumes.
+
+Migrating a call site:
+
+```diff
+- steps={PLACEHOLDER_EXERCISE_STEPS[exerciseId]}
++ steps={toPanelSteps(catalog?.narration)}
+```
+
+It returns `undefined` rather than `[]` for empty input on purpose:
+`PanelCarousel` reads `undefined` as "no narration supplied" and falls back to
+its own generic timing, whereas `[]` would read as "narrate nothing" — a
+different and worse outcome for an exercise that simply has not been through
+the pipeline yet. Blank and whitespace-only lines are dropped for the same
+reason.
+
+`PanelCarousel` itself is unchanged.
+
 ## v0.23.2
 
 **Fix: `Icon` rendered black for almost every color role, in both light and
