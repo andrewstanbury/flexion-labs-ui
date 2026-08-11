@@ -3,6 +3,36 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.25.0
+
+**PanelCarousel gains real player chrome, and its controls are visible in dark mode.**
+
+- **Play/pause and mute are now white, not `inverse`.** The chrome sits on a
+  fixed `rgba(0,0,0,0.45)` scrim in *both* schemes, but `inverse` resolves to
+  `theme.surface` — a dark colour in dark mode. That put a dark icon on a dark
+  scrim, leaving no way to tell playing from paused. Nothing about this scrim
+  follows the theme, so its foreground no longer does either.
+- **Draggable circle handle on the scrubber**, plus an elapsed / total clock.
+  The handle is `pointerEvents: 'none'` so the parent keeps owning the
+  PanResponder — a handle that captured touches would make the bar dead exactly
+  where the finger lands.
+- **Skip to previous / next panel** either side of play/pause.
+- **Explicit restart button.** Play already replayed once the sequence *ended*;
+  this restarts from anywhere.
+- **Playback speed** (1× → 0.75× → 1.5×). Speed scales the playback CLOCK and
+  the TTS rate by the same factor, deliberately not the precomputed
+  `boundaries`/`totalMs` — rescaling those would invalidate every seek position
+  and the progress fraction the moment speed changed. Scaling only one of the
+  two desyncs the narrator from the panels.
+- Uses the design-system `Text` for the clock rather than RN's, so it inherits
+  the same font scaling as every other label.
+
+No export-surface change — `PanelCarousel`'s props are unchanged, so both apps
+can repoint without touching call sites. **Narration still stops only when
+`active` goes false or the component unmounts**: consumers that keep the screen
+mounted while navigating away must pass `active={isFocused}` or the narrator
+keeps talking off-screen.
+
 ## v0.24.0
 
 **Breaking: `PLACEHOLDER_EXERCISE_STEPS` is gone, replaced by `toPanelSteps()`.**
