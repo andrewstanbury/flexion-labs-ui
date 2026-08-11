@@ -335,7 +335,7 @@ describe('<PanelCarousel />', () => {
         <PanelCarousel uris={['a.jpg', 'b.jpg']} narrate testID="carousel" />,
       );
       layout(getByTestId('carousel'));
-      expect(speak).toHaveBeenCalledWith('Hold for 2 seconds.', expect.any(Object));
+      expect(speak).toHaveBeenCalledWith('Hold for 1 second.', expect.any(Object));
     });
 
     it('always uses its own audio session, not whatever the surrounding screen happens to have active', () => {

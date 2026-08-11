@@ -20,7 +20,16 @@ const TICK_MS = 100;
 const CONTROLS_AUTO_HIDE_MS = 2500;
 const REPLAY_AUTO_HIDE_MS = 800;
 const CONTROLS_FADE_MS = 250;
-const DEFAULT_HOLD_SECONDS = 2;
+// The beat AFTER the narrator stops, before the panel changes — not the total
+// time a panel is shown (see the boundaries calc: hold is ADDED to the
+// narration estimate, not the greater of the two). Two seconds read as dead
+// air between steps once real narration replaced the placeholder text; one is
+// enough to take the picture in without the sequence stalling.
+//
+// Not lower than this: the narration estimate leans long on purpose, and
+// trimming the hold too far starts eating the margin that stops a panel
+// changing while the narrator is still talking.
+const DEFAULT_HOLD_SECONDS = 1;
 // Conservative (slower-than-typical) reading pace, so the ESTIMATE of how
 // long narration will take leans long rather than short — better to hold a
 // panel a beat too long than cut the narrator off mid-sentence. Duration is
