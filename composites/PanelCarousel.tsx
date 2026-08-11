@@ -12,6 +12,9 @@ import {
 import * as Speech from 'expo-speech';
 import { Icon } from '../primitives/Icon';
 import { Pressable } from '../primitives/Pressable';
+// The design-system Text, not RN's — the clock readout inherits the same font
+// scaling and variant ramp as every other label in both apps.
+import { Text } from '../primitives/Text';
 import { useTheme } from '../UIProvider';
 
 const DEFAULT_INTERVAL_MS = 1800;
@@ -51,6 +54,46 @@ const NARRATION_RATE = 0.92;
 // app's — matching the theme would just reintroduce the same mismatch in
 // dark mode instead of light mode.
 const PANEL_BACKGROUND_COLOR = '#FFFFFF';
+
+// Player chrome sits on a FIXED dark scrim (rgba(0,0,0,0.45)) in both schemes,
+// so its foreground must be fixed too. These used to use the `inverse` role,
+// which resolves to `theme.surface` — a DARK colour in dark mode, i.e. a dark
+// icon on a dark scrim, leaving no way to tell playing from paused. A themed
+// colour is simply wrong here: nothing about this scrim follows the theme.
+const ON_SCRIM_COLOR = '#FFFFFF';
+const ON_SCRIM_MUTED_COLOR = 'rgba(255,255,255,0.7)';
+const SCRIM_BACKGROUND = 'rgba(0,0,0,0.45)';
+
+// Playback speeds, cycled by tapping the speed chip. 1 first so the initial
+// tap slows down rather than speeding up — the common reason to touch this on
+// an exercise you are trying to follow.
+const SPEEDS = [1, 0.75, 1.5] as const;
+type Speed = (typeof SPEEDS)[number];
+
+// mm:ss for the elapsed/total readout. Panel sequences are seconds-to-minutes,
+// never hours, so no hour component.
+function formatClock(ms: number): string {
+  const total = Math.max(0, Math.round(ms / 1000));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+// The scrubber's draggable dot. Big enough to see against a busy panel and to
+// read as grabbable, without covering the 3px bar it rides on.
+const HANDLE_SIZE = 14;
+
+// Secondary chrome buttons (skip, restart, mute, speed) — one shape so they
+// read as a set rather than four slightly different circles.
+const SCRIM_BUTTON_SM = {
+  minWidth: 40,
+  height: 40,
+  paddingHorizontal: 10,
+  borderRadius: 20,
+  backgroundColor: SCRIM_BACKGROUND,
+  alignItems: 'center' as const,
+  justifyContent: 'center' as const,
+};
 
 type Slot = 0 | 1;
 
@@ -325,6 +368,30 @@ export function PanelCarousel({
     elapsedRef.current = elapsedMs;
   }, [elapsedMs]);
 
+  // Speed scales the CLOCK, not the boundaries. Rescaling `boundaries`/`totalMs`
+  // would invalidate every seek position and the progress fraction the moment
+  // speed changed; advancing elapsed time faster leaves all of that math in
+  // one canonical "natural time" frame. The TTS rate is multiplied by the same
+  // factor below, so the narrator and the panels stay locked together — change
+  // one without the other and the voice drifts out of sync with the images.
+  const [speed, setSpeed] = useState<Speed>(1);
+  const speedRef = useRef<Speed>(1);
+  useEffect(() => {
+    speedRef.current = speed;
+  }, [speed]);
+  // Re-speak the current panel at the new rate rather than letting the
+  // in-flight utterance finish at the old one.
+  // Side effects stay OUT of the updater: React may defer or double-invoke a
+  // state updater, so a Speech.stop() in there is not ordered against the
+  // narration effect that re-speaks at the new rate — the utterance kept
+  // playing at the old speed while the panels ran at the new one, which is
+  // precisely the desync this control has to avoid.
+  const cycleSpeed = () => {
+    narratedIndexRef.current = -1;
+    Speech.stop();
+    setSpeed((prev) => SPEEDS[(SPEEDS.indexOf(prev) + 1) % SPEEDS.length]);
+  };
+
   useEffect(() => {
     if (!isPlaying || !active || !canPlay) return;
     if (elapsedRef.current >= totalMs) {
@@ -336,7 +403,7 @@ export function PanelCarousel({
     let timerId: ReturnType<typeof setTimeout>;
     const tick = () => {
       if (cancelled) return;
-      elapsedRef.current = Math.min(elapsedRef.current + TICK_MS, totalMs);
+      elapsedRef.current = Math.min(elapsedRef.current + TICK_MS * speedRef.current, totalMs);
       setElapsedMs(elapsedRef.current);
       if (elapsedRef.current >= totalMs) {
         setIsPlaying(false);
@@ -379,7 +446,9 @@ export function PanelCarousel({
     narratedIndexRef.current = idx;
     Speech.stop();
     Speech.speak(resolvedSteps[idx].text, {
-      rate: NARRATION_RATE,
+      // Same factor the clock uses, so the narrator finishes a panel's text in
+      // the same proportion of that panel's (now shorter/longer) dwell time.
+      rate: NARRATION_RATE * speed,
       voice: preferredVoiceRef.current,
       // iOS: without this, speech rides whatever audio session the REST of
       // the app happens to have active — silently inaudible wherever nothing
@@ -389,7 +458,7 @@ export function PanelCarousel({
       // PanelCarousel happens to share a screen with a video player.
       useApplicationAudioSession: false,
     });
-  }, [elapsedMs, narrate, resolvedSteps, isPlaying, active, muted, screenReaderEnabled, boundaries]);
+  }, [elapsedMs, narrate, resolvedSteps, isPlaying, active, muted, screenReaderEnabled, boundaries, speed]);
 
   // Cuts narration off immediately on pause/background/mute/screen-reader,
   // rather than waiting for the utterance to finish on its own.
@@ -433,27 +502,40 @@ export function PanelCarousel({
   const iconName = isPlaying ? 'pause' : atEnd ? 'refresh' : 'play';
   const progress = totalMs > 0 ? Math.min(elapsedMs / totalMs, 1) : 0;
 
+  // Rewind to the first panel. Shared by the replay-on-finish path in
+  // togglePlay and the explicit restart button, so both land identically —
+  // two copies of this slot/opacity juggling would be two places to drift.
+  const rewindToStart = () => {
+    fastHideRef.current = true;
+    narratedIndexRef.current = -1;
+    Speech.stop();
+    setElapsedMs(0);
+    pendingRef.current = null;
+    opacities[activeSlotRef.current].setValue(0);
+    const firstSlot: Slot = activeSlotRef.current === 0 ? 1 : 0;
+    opacities[firstSlot].setValue(1);
+    activeSlotRef.current = firstSlot;
+    shownIndexRef.current = 0;
+    setSlotUris((prev) => {
+      const next: [string | null, string | null] = [prev[0], prev[1]];
+      next[firstSlot] = uris[0];
+      return next;
+    });
+  };
+
   const togglePlay = () => {
     if (!canPlay) return;
-    if (!isPlaying && atEnd) {
-      // Finished — replay from the first panel, same as a finished video.
-      fastHideRef.current = true;
-      narratedIndexRef.current = -1;
-      setElapsedMs(0);
-      pendingRef.current = null;
-      opacities[activeSlotRef.current].setValue(0);
-      const firstSlot: Slot = activeSlotRef.current === 0 ? 1 : 0;
-      opacities[firstSlot].setValue(1);
-      activeSlotRef.current = firstSlot;
-      shownIndexRef.current = 0;
-      setSlotUris((prev) => {
-        const next: [string | null, string | null] = [prev[0], prev[1]];
-        next[firstSlot] = uris[0];
-        return next;
-      });
-    }
+    // Finished — replay from the first panel, same as a finished video.
+    if (!isPlaying && atEnd) rewindToStart();
     setControlsVisible(true);
     setIsPlaying((playing) => !playing);
+  };
+
+  const restart = () => {
+    if (!canPlay) return;
+    rewindToStart();
+    setControlsVisible(true);
+    setIsPlaying(true);
   };
 
   // Reveal if hidden. If already visible, hide only while actually playing —
@@ -618,8 +700,24 @@ export function PanelCarousel({
               >
                 <View
                   pointerEvents="box-none"
-                  style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
+                  style={{
+                    flex: 1,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 16,
+                  }}
                 >
+                  <Pressable
+                    testID={testID ? `${testID}-prev` : undefined}
+                    onPress={() => seekToIndex(indexForElapsed(elapsedMs, boundaries) - 1)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Previous panel"
+                  >
+                    <View style={SCRIM_BUTTON_SM}>
+                      <Icon name="play-skip-back" size="md" color={ON_SCRIM_COLOR} />
+                    </View>
+                  </Pressable>
                   <Pressable
                     testID={testID ? `${testID}-toggle` : undefined}
                     onPress={togglePlay}
@@ -631,36 +729,73 @@ export function PanelCarousel({
                         width: 56,
                         height: 56,
                         borderRadius: 28,
-                        backgroundColor: 'rgba(0,0,0,0.45)',
+                        backgroundColor: SCRIM_BACKGROUND,
                         alignItems: 'center',
                         justifyContent: 'center',
                       }}
                     >
-                      <Icon name={iconName} size="lg" color="inverse" />
+                      <Icon name={iconName} size="lg" color={ON_SCRIM_COLOR} />
+                    </View>
+                  </Pressable>
+                  <Pressable
+                    testID={testID ? `${testID}-next` : undefined}
+                    onPress={() => seekToIndex(indexForElapsed(elapsedMs, boundaries) + 1)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Next panel"
+                  >
+                    <View style={SCRIM_BUTTON_SM}>
+                      <Icon name="play-skip-forward" size="md" color={ON_SCRIM_COLOR} />
                     </View>
                   </Pressable>
                 </View>
-                {narrate && (
+                {/* Restart, separate from play/pause. Play already replays once
+                    the sequence has ended, but only THEN — this restarts from
+                    anywhere, which is what a reviewer re-watching a movement
+                    actually wants. */}
+                <Pressable
+                  testID={testID ? `${testID}-restart` : undefined}
+                  onPress={restart}
+                  accessibilityRole="button"
+                  accessibilityLabel="Restart from the beginning"
+                  style={{ position: 'absolute', top: 12, left: 12 }}
+                >
+                  <View style={SCRIM_BUTTON_SM}>
+                    <Icon name="refresh" size="md" color={ON_SCRIM_COLOR} />
+                  </View>
+                </Pressable>
+                <View
+                  pointerEvents="box-none"
+                  style={{ position: 'absolute', top: 12, right: 12, flexDirection: 'row', gap: 8 }}
+                >
                   <Pressable
-                    testID={testID ? `${testID}-mute` : undefined}
-                    onPress={toggleMute}
+                    testID={testID ? `${testID}-speed` : undefined}
+                    onPress={cycleSpeed}
                     accessibilityRole="button"
-                    accessibilityLabel={muted ? 'Unmute' : 'Mute'}
-                    style={{
-                      position: 'absolute',
-                      top: 12,
-                      right: 12,
-                      width: 40,
-                      height: 40,
-                      borderRadius: 20,
-                      backgroundColor: 'rgba(0,0,0,0.45)',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
+                    accessibilityLabel={`Playback speed ${speed}x`}
                   >
-                    <Icon name={muted ? 'volume-mute' : 'volume-high'} size="md" color="inverse" />
+                    <View style={SCRIM_BUTTON_SM}>
+                      <Text variant="caption" style={{ color: ON_SCRIM_COLOR, fontWeight: '700' }}>
+                        {speed}×
+                      </Text>
+                    </View>
                   </Pressable>
-                )}
+                  {narrate && (
+                    <Pressable
+                      testID={testID ? `${testID}-mute` : undefined}
+                      onPress={toggleMute}
+                      accessibilityRole="button"
+                      accessibilityLabel={muted ? 'Unmute' : 'Mute'}
+                    >
+                      <View style={SCRIM_BUTTON_SM}>
+                        <Icon
+                          name={muted ? 'volume-mute' : 'volume-high'}
+                          size="md"
+                          color={ON_SCRIM_COLOR}
+                        />
+                      </View>
+                    </Pressable>
+                  )}
+                </View>
               </Animated.View>
               <View
                 testID={testID ? `${testID}-timeline` : undefined}
@@ -680,28 +815,70 @@ export function PanelCarousel({
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  height: 28,
+                  // Taller than the 3px bar so the drag target and the handle
+                  // both have room — the bar is what you see, this is what you
+                  // can actually hit.
+                  height: 40,
                   justifyContent: 'center',
                   paddingHorizontal: 12,
                 }}
               >
-                <View
-                  style={{
-                    height: 3,
-                    borderRadius: 1.5,
-                    backgroundColor: 'rgba(255,255,255,0.35)',
-                    overflow: 'hidden',
-                  }}
-                >
+                <View style={{ height: HANDLE_SIZE, justifyContent: 'center' }}>
                   <View
-                    testID={testID ? `${testID}-timeline-fill` : undefined}
                     style={{
                       height: 3,
                       borderRadius: 1.5,
+                      backgroundColor: 'rgba(255,255,255,0.35)',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <View
+                      testID={testID ? `${testID}-timeline-fill` : undefined}
+                      style={{
+                        height: 3,
+                        borderRadius: 1.5,
+                        backgroundColor: theme.accentStrong,
+                        width: `${progress * 100}%`,
+                      }}
+                    />
+                  </View>
+                  {/* The draggable dot. Percentage-positioned with a
+                      half-handle negative margin so it centres ON the progress
+                      point rather than starting at it — otherwise it reads as
+                      permanently ahead of the fill, and sits half off-screen at
+                      both ends. pointerEvents none: the parent owns the
+                      PanResponder, and a handle that swallowed touches would
+                      make the bar dead exactly where the finger lands. */}
+                  <View
+                    testID={testID ? `${testID}-timeline-handle` : undefined}
+                    pointerEvents="none"
+                    style={{
+                      position: 'absolute',
+                      left: `${progress * 100}%`,
+                      marginLeft: -HANDLE_SIZE / 2,
+                      width: HANDLE_SIZE,
+                      height: HANDLE_SIZE,
+                      borderRadius: HANDLE_SIZE / 2,
                       backgroundColor: theme.accentStrong,
-                      width: `${progress * 100}%`,
+                      borderWidth: 2,
+                      borderColor: ON_SCRIM_COLOR,
                     }}
                   />
+                </View>
+                <View
+                  pointerEvents="none"
+                  style={{
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    paddingTop: 2,
+                  }}
+                >
+                  <Text variant="caption" style={{ color: ON_SCRIM_COLOR }}>
+                    {formatClock(elapsedMs)}
+                  </Text>
+                  <Text variant="caption" style={{ color: ON_SCRIM_MUTED_COLOR }}>
+                    {formatClock(totalMs)}
+                  </Text>
                 </View>
               </View>
             </Pressable>

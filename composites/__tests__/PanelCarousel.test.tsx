@@ -1,4 +1,4 @@
-import { act, fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render, within } from '@testing-library/react-native';
 import { AccessibilityInfo } from 'react-native';
 import * as Speech from 'expo-speech';
 import { PanelCarousel } from '../PanelCarousel';
@@ -537,6 +537,110 @@ describe('<PanelCarousel />', () => {
       });
       expect(announce).toHaveBeenCalledWith('Second');
       expect(speak.mock.calls.length).toBe(callsBeforeIncrement); // the increment itself didn't speak
+    });
+  });
+  describe('player chrome — visible, legible, and in sync with the narrator', () => {
+    // The regression this guards: the icons used the `inverse` colour role,
+    // which resolves to theme.surface — a DARK colour in dark mode — on a
+    // scrim that is dark in BOTH schemes. That left no way to tell playing
+    // from paused. The scrim does not follow the theme, so its foreground
+    // must not either.
+    it('renders play/pause white, not a theme-derived colour', () => {
+      const { getByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg']} autoPlay={false} testID="carousel" />,
+      );
+      layout(getByTestId('carousel'));
+      const icon = within(getByTestId('carousel-toggle')).getByTestId('Ionicons-icon');
+      expect(icon.props.color).toBe('#FFFFFF');
+    });
+
+    it('puts a draggable handle on the scrubber', () => {
+      const { getByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg']} autoPlay={false} testID="carousel" />,
+      );
+      layout(getByTestId('carousel'));
+      expect(getByTestId('carousel-timeline-handle')).toBeTruthy();
+    });
+
+    // The handle must not eat touches: the PanResponder lives on the parent,
+    // so a handle that captured them would make the bar dead exactly where
+    // the finger tends to land — on the handle itself.
+    it('lets touches through the handle to the scrubber underneath', () => {
+      const { getByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg']} autoPlay={false} testID="carousel" />,
+      );
+      layout(getByTestId('carousel'));
+      expect(getByTestId('carousel-timeline-handle').props.pointerEvents).toBe('none');
+    });
+
+    it('restarts from the first panel from anywhere, not just at the end', () => {
+      const { getByTestId, queryByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg', 'c.jpg']} intervalMs={1000} testID="carousel" />,
+      );
+      layout(getByTestId('carousel'));
+      advanceAndLoad(1100, queryByTestId, 'b.jpg');
+      expect(isShowing(queryByTestId, 'b.jpg')).toBe(true);
+      fireEvent.press(getByTestId('carousel'));
+      fireEvent.press(getByTestId('carousel-restart'));
+      expect(isShowing(queryByTestId, 'a.jpg')).toBe(true);
+    });
+
+    it('cycles speed 1x -> 0.75x -> 1.5x, slowing down first', () => {
+      const { getByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg']} autoPlay={false} testID="carousel" />,
+      );
+      layout(getByTestId('carousel'));
+      const chip = getByTestId('carousel-speed');
+      expect(chip.props.accessibilityLabel).toBe('Playback speed 1x');
+      fireEvent.press(chip);
+      expect(getByTestId('carousel-speed').props.accessibilityLabel).toBe('Playback speed 0.75x');
+      fireEvent.press(getByTestId('carousel-speed'));
+      expect(getByTestId('carousel-speed').props.accessibilityLabel).toBe('Playback speed 1.5x');
+    });
+
+    // Speed scales the clock AND the TTS rate together. Scaling only one
+    // desyncs the narrator from the panels — the failure this pins.
+    it('speaks at the scaled rate so the narrator tracks the panels', async () => {
+      mockScreenReaderEnabled(false);
+      const { getByTestId } = render(
+        <PanelCarousel
+          uris={['a.jpg', 'b.jpg']}
+          narrate
+          steps={[{ text: 'First' }, { text: 'Second' }]}
+          testID="carousel"
+        />,
+      );
+      layout(getByTestId('carousel'));
+      await act(async () => {});
+      const baseRate = speak.mock.calls[0][1].rate;
+      fireEvent.press(getByTestId('carousel-tap-area')); // reveal the chrome
+      fireEvent.press(getByTestId('carousel-speed')); // -> 0.75x
+      await act(async () => {});
+      const slowed = speak.mock.calls[speak.mock.calls.length - 1][1].rate;
+      expect(slowed).toBeCloseTo(baseRate * 0.75, 5);
+    });
+
+    it('skips a whole panel with the next button', () => {
+      const { getByTestId, queryByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg', 'c.jpg']} autoPlay={false} testID="carousel" />,
+      );
+      layout(getByTestId('carousel'));
+      fireEvent.press(getByTestId('carousel-next'));
+      expect(isShowing(queryByTestId, 'b.jpg')).toBe(true);
+    });
+
+    it('shows an elapsed and total clock', () => {
+      const { getByText, getByTestId } = render(
+        <PanelCarousel
+          uris={['a.jpg', 'b.jpg']}
+          intervalMs={5000}
+          autoPlay={false}
+          testID="carousel"
+        />,
+      );
+      layout(getByTestId('carousel'));
+      expect(getByText('0:00')).toBeTruthy();
+      expect(getByText('0:10')).toBeTruthy();
     });
   });
 });
