@@ -3,6 +3,28 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.25.1
+
+**Shorter beat between the narrator finishing and the panel changing.**
+
+`DEFAULT_HOLD_SECONDS` 1 → **0.5**. This is a deliberate override of the
+"not lower than one" note that v0.25.0 carried: the pause still read as a stall
+on device (owner call, 2026-08-11). The warning is kept in the source rather
+than deleted, because the trade-off is real — the gap is this PLUS
+`NARRATION_BUFFER_MS`, and the whole thing rides on an *estimate* of speech
+length, not a callback from the speech engine. This is the margin that stops a
+panel changing mid-sentence when that estimate undershoots. If narration starts
+getting clipped, raise this back toward 1 before touching `WORDS_PER_MINUTE` —
+the estimate is shared with the seek/timeline math, so it is the costlier knob.
+
+**Placeholder narration now announces position, not hold duration.**
+A panel with no step text used to be narrated as `"Hold for N seconds."`,
+interpolating `DEFAULT_HOLD_SECONDS` directly into *spoken output*. Shortening
+the hold therefore made the narrator say "Hold for 0.5 seconds." Timing is a
+tuning knob; what the narrator says is a user-facing contract, and re-tuning one
+must not rewrite the other. It now says `"Step 1 of 4."` — timing-independent,
+and more useful to someone listening than a duration they cannot act on.
+
 ## v0.25.0
 
 **PanelCarousel gains real player chrome, and its controls are visible in dark mode.**
