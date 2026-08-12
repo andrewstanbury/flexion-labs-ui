@@ -3,6 +3,19 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.25.2
+
+**Placeholder narration keeps the "Hold for N seconds." wording (owner call).**
+
+v0.25.1 changed it to "Step 1 of 4." because interpolating
+`DEFAULT_HOLD_SECONDS` into spoken output made the narrator say
+*"Hold for 0.5 seconds."* once the hold was shortened. The wording is restored;
+the number is now `Math.max(1, Math.round(holdSeconds))`, so the timing can be
+retuned freely without the narration ever speaking a fraction.
+
+Affects only panels with **no** step text — since v0.24.0 real narration comes
+from `toPanelSteps`, so this is a fallback path.
+
 ## v0.25.1
 
 **Shorter beat between the narrator finishing and the panel changing.**

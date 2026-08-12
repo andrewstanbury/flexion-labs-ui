@@ -335,11 +335,10 @@ describe('<PanelCarousel />', () => {
         <PanelCarousel uris={['a.jpg', 'b.jpg']} narrate testID="carousel" />,
       );
       layout(getByTestId('carousel'));
-      // Placeholder narration announces POSITION, not the hold duration. It
-      // used to interpolate DEFAULT_HOLD_SECONDS, which coupled spoken output
-      // to a timing constant — shortening the hold made the narrator say
-      // "Hold for 0.5 seconds."
-      expect(speak).toHaveBeenCalledWith('Step 1 of 2.', expect.any(Object));
+      // Keeps the "Hold for N seconds." wording, but ROUNDED and floored at 1
+      // so a fractional DEFAULT_HOLD_SECONDS (0.5) never reaches the narrator
+      // as "Hold for 0.5 seconds."
+      expect(speak).toHaveBeenCalledWith('Hold for 1 second.', expect.any(Object));
     });
 
     it('always uses its own audio session, not whatever the surrounding screen happens to have active', () => {

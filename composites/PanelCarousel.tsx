@@ -208,14 +208,17 @@ export function PanelCarousel({
     return uris.map((_, i) => {
       const s = steps?.[i];
       const holdSeconds = s?.holdSeconds ?? DEFAULT_HOLD_SECONDS;
-      // Placeholder narration for a panel with no step text. Deliberately NOT
-      // derived from holdSeconds any more: that coupled SPOKEN OUTPUT to an
-      // internal timing constant, so shortening the hold to 0.5 made the
-      // narrator say "Hold for 0.5 seconds." Timing is a tuning knob; what the
-      // narrator says is a user-facing contract, and re-tuning one should not
-      // rewrite the other. Position is also simply more useful to someone
-      // listening than a duration they cannot act on.
-      const text = s?.text ?? `Step ${i + 1} of ${uris.length}.`;
+      // Placeholder narration for a panel with no step text. Keeps the
+      // original "Hold for N seconds." wording (owner call, 2026-08-11), but
+      // ROUNDED to whole seconds and floored at 1.
+      //
+      // The rounding is the point: this interpolates holdSeconds into SPOKEN
+      // output, so when DEFAULT_HOLD_SECONDS dropped to 0.5 the narrator
+      // started saying "Hold for 0.5 seconds." Rounding decouples what is said
+      // from the exact tuning value while keeping the sentence intact — retune
+      // the timing freely and the narration stays natural.
+      const spokenHold = Math.max(1, Math.round(holdSeconds));
+      const text = s?.text ?? `Hold for ${spokenHold} second${spokenHold === 1 ? '' : 's'}.`;
       return { text, holdSeconds };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
