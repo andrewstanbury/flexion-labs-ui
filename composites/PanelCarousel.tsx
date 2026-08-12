@@ -26,13 +26,21 @@ const CONTROLS_FADE_MS = 250;
 // The beat AFTER the narrator stops, before the panel changes — not the total
 // time a panel is shown (see the boundaries calc: hold is ADDED to the
 // narration estimate, not the greater of the two). Two seconds read as dead
-// air between steps once real narration replaced the placeholder text; one is
-// enough to take the picture in without the sequence stalling.
+// air once real narration replaced the placeholder text, then one still did.
 //
-// Not lower than this: the narration estimate leans long on purpose, and
-// trimming the hold too far starts eating the margin that stops a panel
-// changing while the narrator is still talking.
-const DEFAULT_HOLD_SECONDS = 1;
+// 0.5 is a DELIBERATE override of the "not lower than one" note that used to
+// sit here (owner call, 2026-08-11: the pause still read as a stall on
+// device). Keep the trade-off visible rather than deleting the warning:
+// the real gap is this PLUS NARRATION_BUFFER_MS, and the whole thing rides on
+// an ESTIMATE of speech length, not a callback from the speech engine. When
+// that estimate undershoots — an unusually long word, a slower voice, a
+// locale we did not tune WORDS_PER_MINUTE for — this is the margin that stops
+// the panel changing mid-sentence. Shortening it spends that margin.
+//
+// If narration starts getting clipped, raise this back toward 1 before
+// touching WORDS_PER_MINUTE: the estimate is shared with the seek/timeline
+// math, so it is the more expensive knob to move.
+const DEFAULT_HOLD_SECONDS = 0.5;
 // Conservative (slower-than-typical) reading pace, so the ESTIMATE of how
 // long narration will take leans long rather than short — better to hold a
 // panel a beat too long than cut the narrator off mid-sentence. Duration is
@@ -200,7 +208,14 @@ export function PanelCarousel({
     return uris.map((_, i) => {
       const s = steps?.[i];
       const holdSeconds = s?.holdSeconds ?? DEFAULT_HOLD_SECONDS;
-      const text = s?.text ?? `Hold for ${holdSeconds} second${holdSeconds === 1 ? '' : 's'}.`;
+      // Placeholder narration for a panel with no step text. Deliberately NOT
+      // derived from holdSeconds any more: that coupled SPOKEN OUTPUT to an
+      // internal timing constant, so shortening the hold to 0.5 made the
+      // narrator say "Hold for 0.5 seconds." Timing is a tuning knob; what the
+      // narrator says is a user-facing contract, and re-tuning one should not
+      // rewrite the other. Position is also simply more useful to someone
+      // listening than a duration they cannot act on.
+      const text = s?.text ?? `Step ${i + 1} of ${uris.length}.`;
       return { text, holdSeconds };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
