@@ -6,6 +6,7 @@ export * from './UIProvider';
 
 // Utils
 export * from './lib/formatBytes';
+export * from './lib/detailScreenState';
 export * from './lib/describeBackend';
 export * from './lib/appLockLogic';
 export * from './lib/secureKeyValueStorage';

@@ -3,6 +3,33 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.26.0
+
+**New: `detailScreenState()` — stops a failed query rendering a spinner forever.**
+
+A guard-ordering helper for detail screens, lifted here because BOTH apps had
+the same bug and would otherwise carry two copies of the fix.
+
+The shape it prevents:
+
+```js
+if (isLoading || !form) return <Spinner/>;   // swallows the failure path
+if (!data)             return <NotFound/>;   // unreachable on a failed first load
+```
+
+When the derived state (`form`, `profile`, …) is only ever set by an effect that
+returns early without data, a settled-but-failed query leaves it null forever —
+so the spinner becomes the terminal state and the not-found branch never runs.
+Found in practitioner `patients/[sub]` and client `settings/profile`, the latter
+with no fallback branch at all.
+
+The rule it encodes: **a spinner is only legitimate while something is genuinely
+in flight. Once a query settles, every path must end in content or an
+explanation.** `'preparing'` is the single post-settle spinner and it requires
+`hasData`, so it is bounded by an effect guaranteed to run next render.
+
+Additive export — no existing behaviour changes.
+
 ## v0.25.2
 
 **Placeholder narration keeps the "Hold for N seconds." wording (owner call).**
