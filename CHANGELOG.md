@@ -3,6 +3,35 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.27.0
+
+**New: `pinnedLast` — hold a tab at the end of the nav bar.**
+
+Both apps need Settings pinned to the far right and out of the reorder list, so
+the rule lives here rather than duplicated across four render sites (each app's
+tab bar and each app's Settings → Navigation page).
+
+`createNavOrderStore(name, allKeys, alwaysVisible, pinnedLast?)` applies the pin
+on every path that can produce an order — initial state, `reset`, `moveTab` and
+**rehydration**. Rehydration is the one that matters in the field: the order is
+persisted per device, so a device that saved an order before a tab was pinned
+would otherwise keep it forever, and the UI no longer offers a way to move it
+back.
+
+`moveTab` refuses two things, not one: moving a pinned tab, and moving another
+tab *past* one. Without the second guard, moving the second-to-last tab down
+swaps it with the pinned tab and unpins it from the other side.
+
+`NavigationSection` gains `pinnedLast` + `pinnedSubtitle` (default "Always
+last"). It omits the arrows for a pinned tab rather than disabling them — a
+greyed-out control invites a tap that can never do anything — and greys the down
+arrow on the tab above one, matching what `moveTab` will actually allow.
+
+Also exported: `pinNavTabsLast()`, `canMoveNavTab()`.
+
+**Additive.** `pinnedLast` defaults to `[]` on both the store and the component,
+so existing callers behave exactly as before. Nothing renamed or removed.
+
 ## v0.26.0
 
 **New: `detailScreenState()` — stops a failed query rendering a spinner forever.**
