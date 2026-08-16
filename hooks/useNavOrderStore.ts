@@ -43,15 +43,37 @@ function defaultHidden<K extends string>(allKeys: readonly K[]): Record<K, boole
   return allKeys.reduce((acc, k) => ({ ...acc, [k]: false }), {} as Record<K, boolean>);
 }
 
+/**
+ * Moves `pinned` to the end of `order`, preserving the relative order of both
+ * groups. Applied on every path that can produce an order — initial state,
+ * reset, moveTab and rehydration — so a pinned tab cannot end up anywhere else.
+ *
+ * Rehydration matters most: the order is persisted per device, so a device that
+ * saved an order before a tab was pinned would otherwise keep that stale order
+ * forever, with no UI left to correct it.
+ */
+export function pinNavTabsLast<K extends string>(order: readonly K[], pinned: readonly K[]): K[] {
+  if (pinned.length === 0) return [...order];
+  return [...order.filter((k) => !pinned.includes(k)), ...pinned.filter((k) => order.includes(k))];
+}
+
+/** True when `key` may be reordered — pinned tabs hold their position. */
+export function canMoveNavTab<K extends string>(key: K, pinnedLast: readonly K[]): boolean {
+  return !pinnedLast.includes(key);
+}
+
 export function createNavOrderStore<K extends string>(
   name: string,
   allKeys: readonly K[],
   alwaysVisible: readonly K[],
+  // Tabs held at the end of the bar, in the order given. Additive and
+  // defaulted, so existing callers keep their current behaviour exactly.
+  pinnedLast: readonly K[] = [],
 ) {
   return createPersistedStore<NavOrderState<K>>(
     name,
     (set) => ({
-      order: [...allKeys],
+      order: pinNavTabsLast([...allKeys], pinnedLast),
       hidden: defaultHidden(allKeys),
       toggleTab: (key) =>
         set((s) => {
@@ -61,14 +83,19 @@ export function createNavOrderStore<K extends string>(
         }),
       moveTab: (key, direction) =>
         set((s) => {
+          if (!canMoveNavTab(key, pinnedLast)) return s;
           const idx = s.order.indexOf(key);
           const swapWith = direction === 'up' ? idx - 1 : idx + 1;
           if (idx < 0 || swapWith < 0 || swapWith >= s.order.length) return s;
+          // Refuse to displace a pinned tab as well as to move one: without
+          // this, moving the second-to-last tab down would swap it past the
+          // pinned one and unpin it from the other side.
+          if (!canMoveNavTab(s.order[swapWith], pinnedLast)) return s;
           const next = [...s.order];
           [next[idx], next[swapWith]] = [next[swapWith], next[idx]];
           return { order: next };
         }),
-      reset: () => set({ order: [...allKeys], hidden: defaultHidden(allKeys) }),
+      reset: () => set({ order: pinNavTabsLast([...allKeys], pinnedLast), hidden: defaultHidden(allKeys) }),
     }),
     {
       version: 1,
@@ -83,7 +110,10 @@ export function createNavOrderStore<K extends string>(
         return {
           ...current,
           ...p,
-          order: [...persistedOrder, ...missing],
+          // Re-pinned on every rehydrate, not just on first run: a device that
+          // persisted an order before a tab was pinned would otherwise keep
+          // that order forever, and the UI no longer offers a way to fix it.
+          order: pinNavTabsLast([...persistedOrder, ...missing], pinnedLast),
           hidden: { ...defaultHidden(allKeys), ...(p?.hidden ?? {}) },
         };
       },
