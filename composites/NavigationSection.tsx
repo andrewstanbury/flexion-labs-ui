@@ -30,14 +30,19 @@ export function NavigationSection<K extends string>({
   toggleTab,
   moveTab,
   reset,
+  pinnedLast = [],
   resetLabel = 'Show all tabs',
   resetSubtitle = 'Restore the default order and visibility',
   protectedSubtitle = 'Always visible',
+  pinnedSubtitle = 'Always last',
   lastVisibleSubtitle = 'Keep at least one tab visible',
   testID,
 }: {
   tabs: NavSectionTab<K>[];
   alwaysVisible: readonly K[];
+  /** Tabs held at the end of the bar. Their arrows are omitted, not disabled. */
+  pinnedLast?: readonly K[];
+  pinnedSubtitle?: string;
   order: K[];
   hidden: Partial<Record<K, boolean>>;
   toggleTab: NavOrderState<K>['toggleTab'];
@@ -60,35 +65,58 @@ export function NavigationSection<K extends string>({
   return (
     <View>
       {orderedTabs.map((tab, index) => {
+        const isPinned = pinnedLast.includes(tab.key);
         const isProtected = alwaysVisible.includes(tab.key);
         const isLastVisible = !isProtected && visibleCount <= 1 && !hidden[tab.key];
-        const subtitle = isProtected ? protectedSubtitle : isLastVisible ? lastVisibleSubtitle : undefined;
+        // "Always last" outranks "always visible" in the subtitle: a pinned tab
+        // is usually also protected, and the position is the surprising part —
+        // the arrows next to it are gone, and that needs explaining.
+        const subtitle = isPinned
+          ? pinnedSubtitle
+          : isProtected
+            ? protectedSubtitle
+            : isLastVisible
+              ? lastVisibleSubtitle
+              : undefined;
+        // Arrows are omitted rather than disabled. A greyed-out control invites
+        // a tap that will never do anything; absence reads as "not movable".
+        const nextIsPinned = index + 1 < orderedTabs.length && pinnedLast.includes(orderedTabs[index + 1].key);
         return (
           <View
             key={tab.key}
             testID={testID ? `${testID}-row-${tab.key}` : undefined}
             style={{ flexDirection: 'row', alignItems: 'center', gap: space.px * 3, paddingVertical: space.px * 2 }}
           >
-            <View>
-              <Pressable.Touch
-                onPress={() => moveTab(tab.key, 'up')}
-                disabled={index === 0}
-                accessibilityRole="button"
-                accessibilityLabel={`Move ${tab.label} up`}
-                style={{ opacity: index === 0 ? 0.3 : 1, padding: space.px }}
-              >
-                <Icon name="chevron-up" size="sm" color="secondary" />
-              </Pressable.Touch>
-              <Pressable.Touch
-                onPress={() => moveTab(tab.key, 'down')}
-                disabled={index === orderedTabs.length - 1}
-                accessibilityRole="button"
-                accessibilityLabel={`Move ${tab.label} down`}
-                style={{ opacity: index === orderedTabs.length - 1 ? 0.3 : 1, padding: space.px }}
-              >
-                <Icon name="chevron-down" size="sm" color="secondary" />
-              </Pressable.Touch>
-            </View>
+            {isPinned ? (
+              <View style={{ width: space.px * 6 }} />
+            ) : (
+              <View>
+                <Pressable.Touch
+                  onPress={() => moveTab(tab.key, 'up')}
+                  disabled={index === 0}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Move ${tab.label} up`}
+                  style={{ opacity: index === 0 ? 0.3 : 1, padding: space.px }}
+                >
+                  <Icon name="chevron-up" size="sm" color="secondary" />
+                </Pressable.Touch>
+                <Pressable.Touch
+                  onPress={() => moveTab(tab.key, 'down')}
+                  // The tab above a pinned one has nowhere to go either —
+                  // moveTab would refuse the swap, so the arrow must not
+                  // suggest otherwise.
+                  disabled={index === orderedTabs.length - 1 || nextIsPinned}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Move ${tab.label} down`}
+                  style={{
+                    opacity: index === orderedTabs.length - 1 || nextIsPinned ? 0.3 : 1,
+                    padding: space.px,
+                  }}
+                >
+                  <Icon name="chevron-down" size="sm" color="secondary" />
+                </Pressable.Touch>
+              </View>
+            )}
             <View style={{ flex: 1 }}>
               <ToggleRow
                 leftIcon={<IconBubble name={tab.icon} color={t.accentStrong} />}
