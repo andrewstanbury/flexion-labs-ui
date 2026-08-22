@@ -10,6 +10,7 @@ export * from './lib/detailScreenState';
 export * from './lib/describeBackend';
 export * from './lib/appLockLogic';
 export * from './lib/secureKeyValueStorage';
+export * from './lib/apiTransport';
 export * from './lib/toPanelSteps';
 
 // Hooks
