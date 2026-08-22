@@ -3,6 +3,35 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.28.0
+
+**New: `createApiTransport` — the HTTP layer both apps were duplicating.**
+
+`ApiError`, the bounded token fetch, `apiFetch` and the timeout constants
+existed as a byte-identical copy in each app, and had already drifted in BOTH
+directions: `LLM_REQUEST_TIMEOUT_MS` only in the practitioner app,
+`apiHeaders` + the `X-Flexion-App` declaration only in the patient app. Neither
+benefited from the other's fix and nothing made that visible.
+
+Amplify is deliberately NOT a dependency. The caller injects `fetchIdToken`,
+the same way `useMediaUri` takes an injected `fetchSignedUrl`, so the design
+system does not acquire an auth library to make one HTTP call.
+
+Exports: `createApiTransport`, `ApiError`, `apiHeaders`, `errorDetailFrom`,
+`withTimeout`, `REQUEST_TIMEOUT_MS`, `LLM_REQUEST_TIMEOUT_MS`,
+`APP_CONTEXT_HEADER`.
+
+Two behaviours worth knowing, both now pinned by tests:
+
+- the token bound rejects with **status 0, not 408** — `isPermanentFailure()`
+  treats every 4xx as poison and DROPS the queued write, so a 4xx there turns a
+  hang into silent data loss on the offline queue
+- only a structured `{ message | error }` field is surfaced from an error body,
+  never the raw text, which can echo PII or a stack trace into a user-facing
+  string
+
+**Additive.** Nothing renamed or removed.
+
 ## v0.27.0
 
 **New: `pinnedLast` — hold a tab at the end of the nav bar.**
