@@ -1,6 +1,7 @@
 import {
   APP_CONTEXT_HEADER,
   REQUEST_TIMEOUT_MS,
+  TIMEOUT_RETRIES_FOR_READS,
   ApiError,
   apiHeaders,
   createApiTransport,
@@ -147,5 +148,60 @@ describe('createApiTransport', () => {
     await jest.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
     await assertion;
     jest.useRealTimers();
+  });
+
+  describe('a read that times out (e.g. a paused database waking up)', () => {
+    // A fetch that never answers until aborted, like a request held while the
+    // database resumes; the Nth call (1-based) in `answerOn` answers at once.
+    function stallingFetch(answerOn: number[]) {
+      let calls = 0;
+      return jest.fn((_u: string, init: RequestInit) => {
+        calls += 1;
+        if (answerOn.includes(calls)) return Promise.resolve(okResponse);
+        return new Promise((_, reject) => {
+          init.signal?.addEventListener('abort', () =>
+            reject(Object.assign(new Error('aborted'), { name: 'AbortError' })),
+          );
+        });
+      });
+    }
+
+    afterEach(() => jest.useRealTimers());
+
+    it('is tried once more, so one slow wake-up is a slow load, not an error', async () => {
+      jest.useFakeTimers();
+      const fetchMock = stallingFetch([2]);
+      global.fetch = fetchMock as never;
+      const t = createApiTransport({ baseUrl: 'https://api.test', fetchIdToken: async () => 'tok' });
+
+      const pending = t.request<{ hello: string }>('/profile');
+      await jest.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
+      await expect(pending).resolves.toEqual({ hello: 'world' });
+      expect(fetchMock).toHaveBeenCalledTimes(1 + TIMEOUT_RETRIES_FOR_READS);
+    });
+
+    it('still fails once the retry also times out', async () => {
+      jest.useFakeTimers();
+      global.fetch = stallingFetch([]) as never;
+      const t = createApiTransport({ baseUrl: 'https://api.test', fetchIdToken: async () => 'tok' });
+
+      const pending = t.request('/profile');
+      const assertion = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+      await jest.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS * (1 + TIMEOUT_RETRIES_FOR_READS));
+      await assertion;
+    });
+
+    it('is never retried for a write, which may already have been applied', async () => {
+      jest.useFakeTimers();
+      const fetchMock = stallingFetch([2]);
+      global.fetch = fetchMock as never;
+      const t = createApiTransport({ baseUrl: 'https://api.test', fetchIdToken: async () => 'tok' });
+
+      const pending = t.request('/completions', { method: 'POST', body: '{}' });
+      const assertion = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+      await jest.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
+      await assertion;
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
   });
 });
