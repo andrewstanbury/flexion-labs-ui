@@ -51,6 +51,23 @@ export const REQUEST_TIMEOUT_MS = 15000;
  */
 export const LLM_REQUEST_TIMEOUT_MS = 125000;
 
+/**
+ * How many times a READ that hit the timeout is tried again. The database can
+ * pause itself when idle (Aurora Serverless v2, scale to zero) and takes ~15s
+ * to wake, so the first request after a quiet spell can run past
+ * REQUEST_TIMEOUT_MS while the second lands on a database that is now awake.
+ * Retrying turns that into one slow load instead of an error screen.
+ *
+ * Reads only (GET/HEAD): a write that timed out may still have been applied,
+ * so repeating it here could double it. Writes already go through the offline
+ * queue, which retries them safely.
+ */
+export const TIMEOUT_RETRIES_FOR_READS = 1;
+
+function isTimeout(error: unknown): boolean {
+  return (error as { name?: string } | null)?.name === 'AbortError';
+}
+
 /** Header naming which app is asking. The server treats it as narrowing only. */
 export const APP_CONTEXT_HEADER = 'X-Flexion-App';
 
@@ -141,21 +158,28 @@ export function createApiTransport(config: ApiTransportConfig): ApiTransport {
         REQUEST_TIMEOUT_MS,
         'Timed out checking your sign-in. Please try again.',
       );
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
-      try {
-        const res = await fetch(`${baseUrl}${path}`, {
-          ...init,
-          signal: controller.signal,
-          headers: apiHeaders(idToken, config.appContext, init?.headers),
-        });
-        if (!res.ok) {
-          const raw = await res.text().catch(() => '');
-          throw new ApiError(res.status, errorDetailFrom(raw) || `Request failed (${res.status}).`);
+      const method = (init?.method ?? 'GET').toUpperCase();
+      const retries = method === 'GET' || method === 'HEAD' ? TIMEOUT_RETRIES_FOR_READS : 0;
+      for (let attempt = 0; ; attempt += 1) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+          const res = await fetch(`${baseUrl}${path}`, {
+            ...init,
+            signal: controller.signal,
+            headers: apiHeaders(idToken, config.appContext, init?.headers),
+          });
+          if (!res.ok) {
+            const raw = await res.text().catch(() => '');
+            throw new ApiError(res.status, errorDetailFrom(raw) || `Request failed (${res.status}).`);
+          }
+          return (await res.json()) as T;
+        } catch (error) {
+          if (attempt < retries && isTimeout(error)) continue;
+          throw error;
+        } finally {
+          clearTimeout(timer);
         }
-        return (await res.json()) as T;
-      } finally {
-        clearTimeout(timer);
       }
     },
   };
