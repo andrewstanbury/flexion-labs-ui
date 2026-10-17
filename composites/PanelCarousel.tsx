@@ -291,6 +291,9 @@ export function PanelCarousel({
   // panel — players hold native resources until remove().
   const audioPlayerRef = useRef<AudioPlayer | null>(null);
   const audioModeSetRef = useRef(false);
+  // A resume/scrub offset for a clip that was still loading when it was
+  // requested — applied on its first "loaded" status.
+  const pendingSeekRef = useRef<{ url: string; seconds: number } | null>(null);
   // URL the player is currently playing, so a late error status for a
   // recording we already moved past is not misattributed to the current one.
   const currentAudioUrlRef = useRef<string | null>(null);
@@ -311,6 +314,36 @@ export function PanelCarousel({
     currentAudioUrlRef.current = null;
     narratedIndexRef.current = -1;
     setFailedAudioUrls((prev) => (prev.includes(url) ? prev : [...prev, url]));
+  };
+  // playsInSilentMode mirrors what useApplicationAudioSession:false buys
+  // expo-speech: without it the iPhone ring/silent switch mutes the narrator.
+  // Set once per mount.
+  const ensureAudioMode = (audio: ExpoAudio) => {
+    if (audioModeSetRef.current) return;
+    audioModeSetRef.current = true;
+    audio.setAudioModeAsync({ playsInSilentMode: true }).catch(() => {
+      // Audio session unavailable — playback still attempts.
+    });
+  };
+  const ensurePlayer = (audio: ExpoAudio): AudioPlayer => {
+    if (audioPlayerRef.current) return audioPlayerRef.current;
+    const player = audio.createAudioPlayer(null);
+    audioPlayerRef.current = player;
+    // Load/playback failures (expired signed URL, network, decoder) arrive
+    // asynchronously as an error status, not a thrown error.
+    audioSubscriptionRef.current = player.addListener('playbackStatusUpdate', (status) => {
+      const current = currentAudioUrlRef.current;
+      if (status.error && current) {
+        fallBackToTts(current);
+        return;
+      }
+      const pending = pendingSeekRef.current;
+      if (pending && status.isLoaded && pending.url === current) {
+        pendingSeekRef.current = null;
+        Promise.resolve(player.seekTo(pending.seconds)).catch(() => {});
+      }
+    });
+    return player;
   };
   useEffect(
     () => () => {
@@ -444,6 +477,16 @@ export function PanelCarousel({
     stopNarration();
   }, [audioSignature]);
 
+  // Prepare the audio session as soon as there are recordings to play, not
+  // when the first one starts: the mode change is asynchronous, and a clip
+  // started before it lands can play muted under the iPhone silent switch —
+  // which is how the first panel ended up silent while later ones worked.
+  useEffect(() => {
+    if (!narrate || !audioSignature.replace(/\|/g, '')) return;
+    const audio = loadExpoAudio();
+    if (audio) ensureAudioMode(audio);
+  }, [narrate, audioSignature]);
+
   // Playback clock — ticks while playing; the panel to show is derived from
   // elapsed time (below). Self-schedules each tick's own setTimeout inside
   // the previous tick's callback, rather than depending on elapsedMs being
@@ -550,41 +593,35 @@ export function PanelCarousel({
     const offsetMs = fromReset ? Math.max(0, elapsedMs - (boundaries[idx] ?? 0)) : 0;
     const audio = step.audioUrl ? loadExpoAudio() : null;
     if (step.audioUrl && audio) {
-      // Recorded narration. playsInSilentMode mirrors what
-      // useApplicationAudioSession:false buys expo-speech below: without it
-      // the iOS ring/silent switch mutes the narrator. Set once per mount.
-      if (!audioModeSetRef.current) {
-        audioModeSetRef.current = true;
-        audio.setAudioModeAsync({ playsInSilentMode: true }).catch(() => {
-          // Audio session unavailable — playback still attempts below.
-        });
-      }
+      // Normally already set by the eager effect above, before the viewer
+      // pressed play; this is the fallback for a mount that skipped it.
+      ensureAudioMode(audio);
       const url = step.audioUrl;
       // Already past the end of this panel's recording: nothing left to say
       // until the next panel, same as scrubbing a video past a line.
       if (step.audioDurationMs !== undefined && offsetMs >= step.audioDurationMs) return;
       try {
-        let player = audioPlayerRef.current;
-        if (!player) {
-          player = audio.createAudioPlayer({ uri: url });
-          audioPlayerRef.current = player;
-          // Load/playback failures (expired signed URL, network, decoder)
-          // arrive asynchronously as an error status, not a thrown error.
-          audioSubscriptionRef.current = player.addListener('playbackStatusUpdate', (status) => {
-            const current = currentAudioUrlRef.current;
-            if (status.error && current) fallBackToTts(current);
-          });
-        } else {
-          player.replace({ uri: url });
-        }
+        // Every clip — the first included — goes through the same path: one
+        // player created empty, then replace(). The first clip used to be
+        // loaded at creation instead, a separate path that played inconsistently.
+        const player = ensurePlayer(audio);
+        const sameSource = currentAudioUrlRef.current === url;
+        if (!sameSource) player.replace({ uri: url });
         currentAudioUrlRef.current = url;
-        // Always position the clip explicitly. A clip that already played to
-        // its end stays parked there, and re-loading the same source does not
-        // rewind it — which is why restarting used to leave the narrator
-        // silent. 0 for a fresh panel; the panel offset after resume/scrub.
-        Promise.resolve(player.seekTo(offsetMs / 1000)).catch(() => {
-          // Seek unsupported before load on some platforms; play from 0.
-        });
+        const seconds = offsetMs / 1000;
+        // A clip already loaded is always rewound/positioned explicitly: one
+        // that played to its end stays parked there, which is why restarting
+        // used to leave the narrator silent. A freshly loaded clip starts at 0
+        // on its own; it only needs a seek for a resume/scrub offset, which is
+        // also re-applied once the clip has loaded (a seek on a still-loading
+        // source can be dropped).
+        if (sameSource || seconds > 0) {
+          Promise.resolve(player.seekTo(seconds)).catch(() => {
+            // Seek before load unsupported on some platforms; the pending
+            // seek below covers it.
+          });
+        }
+        pendingSeekRef.current = !sameSource && seconds > 0 ? { url, seconds } : null;
         // Same factor the clock uses, so the recording stays locked to the
         // panels at 0.75x/1.5x. NOT multiplied by NARRATION_RATE: that slows
         // the TTS engine's clipped default pace, while the recording is already
@@ -614,6 +651,9 @@ export function PanelCarousel({
       // PanelCarousel happens to share a screen with a video player.
       useApplicationAudioSession: false,
     });
+    // ensurePlayer/ensureAudioMode/stopNarration are per-render helpers over
+    // refs; listing them would re-run narration on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [elapsedMs, narrate, resolvedSteps, isPlaying, active, muted, screenReaderEnabled, boundaries, speed]);
 
   // Cuts narration off immediately on pause/background/mute/screen-reader,

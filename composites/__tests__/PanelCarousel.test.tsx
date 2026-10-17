@@ -557,7 +557,7 @@ describe('<PanelCarousel />', () => {
         <PanelCarousel uris={['a.jpg', 'b.jpg']} narrate intervalMs={500} steps={audioSteps} testID="carousel" />,
       );
       layout(getByTestId('carousel'));
-      expect(createPlayer).toHaveBeenCalledWith({ uri: 'https://cdn/a.mp3' });
+      expect(player().replace).toHaveBeenCalledWith({ uri: 'https://cdn/a.mp3' });
       expect(player().play).toHaveBeenCalled();
       expect(speak).not.toHaveBeenCalled();
     });

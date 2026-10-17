@@ -34,19 +34,19 @@ function mount(props: Partial<React.ComponentProps<typeof PanelCarousel>> = {}) 
   return utils;
 }
 
-// Every call that started a clip, as [url, seekSeconds] — a play is always
-// preceded by a replace/create and a seek, in that order.
-function clipStarts(): { url: string; at: number }[] {
-  const p = player();
-  const sources = [
-    ...createPlayer.mock.calls.filter((c) => c[0]).map((c) => c[0].uri as string),
-    ...p.replace.mock.calls.map((c: [{ uri: string }]) => c[0].uri),
-  ];
-  return p.seekTo.mock.calls.map((c: [number], i: number) => ({ url: sources[i] ?? sources[sources.length - 1], at: c[0] }));
-}
 const lastSeek = () => {
   const calls = player().seekTo.mock.calls;
   return calls.length ? calls[calls.length - 1][0] : undefined;
+};
+// Where the most recent clip start began, in seconds: the last seek if it came
+// after the last source change, else 0 (a freshly loaded clip starts at 0).
+const startedAt = () => {
+  const p = player();
+  const lastOrder = (m: jest.Mock) => {
+    const o = m.mock.invocationCallOrder;
+    return o.length ? o[o.length - 1] : -1;
+  };
+  return lastOrder(p.seekTo) > lastOrder(p.replace) ? lastSeek() : 0;
 };
 const lastSource = () => {
   const replaced = player().replace.mock.calls;
@@ -113,7 +113,7 @@ describe('PanelCarousel playback — behaves like a video with a narrator track'
     it('starts on the first panel with its recording from the beginning', () => {
       mount();
       expect(lastSource()).toBe('https://cdn/a.mp3');
-      expect(lastSeek()).toBe(0);
+      expect(startedAt()).toBe(0);
       expect(player().play).toHaveBeenCalledTimes(1);
       expect(speak).not.toHaveBeenCalled();
     });
@@ -136,7 +136,7 @@ describe('PanelCarousel playback — behaves like a video with a narrator track'
       fireEvent(getByTestId('c'), 'layout', { nativeEvent: { layout: { width: 300, height: 300 } } });
       expect(stop).toHaveBeenCalled();
       expect(lastSource()).toBe('https://cdn/x.mp3');
-      expect(lastSeek()).toBe(0);
+      expect(startedAt()).toBe(0);
       expect(player().play).toHaveBeenCalled();
     });
 
@@ -179,7 +179,7 @@ describe('PanelCarousel playback — behaves like a video with a narrator track'
       player().seekTo.mockClear();
       fireEvent.press(getByTestId('c-toggle')); // the replay button
       expect(lastSource()).toBe('https://cdn/a.mp3');
-      expect(lastSeek()).toBe(0);
+      expect(startedAt()).toBe(0);
       expect(player().play).toHaveBeenCalledTimes(1);
     });
 
@@ -191,7 +191,7 @@ describe('PanelCarousel playback — behaves like a video with a narrator track'
       reveal(getByTestId);
       fireEvent.press(getByTestId('c-restart'));
       expect(lastSource()).toBe('https://cdn/a.mp3');
-      expect(lastSeek()).toBe(0);
+      expect(startedAt()).toBe(0);
       expect(player().play).toHaveBeenCalledTimes(1);
     });
 
@@ -202,7 +202,7 @@ describe('PanelCarousel playback — behaves like a video with a narrator track'
       reveal(getByTestId);
       fireEvent.press(getByTestId('c-restart'));
       expect(lastSource()).toBe('https://cdn/a.mp3');
-      expect(lastSeek()).toBe(0);
+      expect(startedAt()).toBe(0);
     });
   });
 
@@ -230,7 +230,7 @@ describe('PanelCarousel playback — behaves like a video with a narrator track'
       expect(player().play).not.toHaveBeenCalled();
       act(() => jest.advanceTimersByTime(600)); // into panel B
       expect(lastSource()).toBe('https://cdn/b.mp3');
-      expect(lastSeek()).toBe(0);
+      expect(startedAt()).toBe(0);
       expect(player().play).toHaveBeenCalledTimes(1);
     });
 
@@ -319,7 +319,7 @@ describe('PanelCarousel playback — behaves like a video with a narrator track'
       fireEvent.press(getByTestId('c-next'));
       expect(isPlaying(getByTestId)).toBe(true);
       expect(lastSource()).toBe('https://cdn/b.mp3');
-      expect(lastSeek()).toBe(0);
+      expect(startedAt()).toBe(0);
     });
 
     it('keeps the playback rate after a resume', () => {
@@ -333,13 +333,47 @@ describe('PanelCarousel playback — behaves like a video with a narrator track'
     });
   });
 
-  it('every clip start seeks first, so no clip ever plays from a stale position', () => {
-    const { getByTestId } = mount();
-    act(() => jest.advanceTimersByTime(A_MS + 200));
-    reveal(getByTestId);
-    fireEvent.press(getByTestId('c-restart'));
-    const p = player();
-    expect(p.seekTo.mock.calls.length).toBe(p.play.mock.calls.length);
-    expect(clipStarts().length).toBe(p.play.mock.calls.length);
+  describe('first clip — same path and audio session as every other clip', () => {
+    it('prepares the audio session before the viewer presses play', () => {
+      const setMode = require('expo-audio').setAudioModeAsync as jest.Mock;
+      mount({ autoPlay: false });
+      expect(setMode).toHaveBeenCalledWith({ playsInSilentMode: true });
+      expect(player().play).not.toHaveBeenCalled();
+    });
+
+    it('loads the first clip into an empty player via replace, like every later clip', () => {
+      mount();
+      expect(createPlayer).toHaveBeenCalledWith(null);
+      expect(player().replace).toHaveBeenCalledWith({ uri: 'https://cdn/a.mp3' });
+      expect(player().play).toHaveBeenCalledTimes(1);
+    });
+
+    it('re-applies a scrub offset once a still-loading clip has loaded', () => {
+      const { getByTestId } = mount();
+      scrub(getByTestId, xFor(A_MS + 900)); // into panel B: a fresh clip
+      const wanted = lastSeek();
+      expect(wanted).toBeGreaterThan(0.7);
+      player().seekTo.mockClear();
+      const listener = player().addListener.mock.calls[0][1];
+      act(() => listener({ isLoaded: true }));
+      expect(player().seekTo).toHaveBeenCalledWith(wanted);
+      // Only once — later status updates must not keep yanking the playhead.
+      player().seekTo.mockClear();
+      act(() => listener({ isLoaded: true }));
+      expect(player().seekTo).not.toHaveBeenCalled();
+    });
+
+    it('a clip already loaded is rewound before it plays again', () => {
+      const { getByTestId } = mount();
+      act(() => jest.advanceTimersByTime(2000));
+      reveal(getByTestId);
+      player().seekTo.mockClear();
+      fireEvent.press(getByTestId('c-restart'));
+      const p = player();
+      expect(p.seekTo).toHaveBeenCalledWith(0);
+      expect(p.seekTo.mock.invocationCallOrder[0]).toBeLessThan(
+        p.play.mock.invocationCallOrder[p.play.mock.invocationCallOrder.length - 1],
+      );
+    });
   });
 });

@@ -3,7 +3,19 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
-## v0.34.0
+## v0.34.1
+
+**Fix: the first panel's narration could be silent.** Two first-clip-only
+differences: the audio session (playsInSilentMode) was set asynchronously at
+the moment the first clip started, so it could start muted under the iPhone
+silent switch; and the first clip was loaded at player creation and seeked
+before it had loaded, a different path from every later clip's replace().
+Now the audio session is prepared as soon as recordings are present (before
+play is pressed), every clip goes through one empty player + replace(), a
+loaded clip is rewound only when it is the same source, and a resume/scrub
+offset requested while a clip is still loading is re-applied once it loads.
+Four new tests; three fail on v0.34.0.
+
 
 **PanelCarousel narration behaves like a video's soundtrack.** Fixes:
 
