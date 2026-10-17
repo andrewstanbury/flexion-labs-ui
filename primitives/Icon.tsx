@@ -8,7 +8,7 @@ import type { ComponentProps } from 'react';
 
 type IoniconsName = ComponentProps<typeof Ionicons>['name'];
 type Size = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
-type ColorRole = 'primary' | 'secondary' | 'muted' | 'accent' | 'danger' | 'inverse';
+type ColorRole = 'primary' | 'secondary' | 'muted' | 'accent' | 'danger' | 'inverse' | 'onAccent';
 
 const SIZES: Record<Size, number> = {
   xs: 14,
@@ -32,6 +32,7 @@ function resolveColor(c: ColorRole | string, t: ReturnType<typeof useTheme>): st
     case 'accent':    return t.accent;
     case 'danger':    return t.danger;
     case 'inverse':   return t.surface;
+    case 'onAccent':  return t.accentOn;
     default:          return c; // arbitrary raw color string (e.g. a hex value)
   }
 }

@@ -126,6 +126,28 @@ function fromRoles(base: SemanticPalette, r: RoleSet): SemanticPalette {
   };
 }
 
+// Pastel light mode (v0.33.0): filled faces (buttons, selected chips) are the
+// palette colour softened toward white, with a deep shade of the same hue as
+// the label. The deep shade is darkened until it reads at 4.5:1 or better on
+// the pastel face, so every palette stays legible. Dark mode is unchanged.
+export function contrastRatio(a: string, b: string): number {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+export function pastelFill(fill: string): { face: string; edge: string; on: string } {
+  const face = mix(fill, '#FFFFFF', 0.72);
+  const edge = mix(fill, '#FFFFFF', 0.45);
+  let on = mix(fill, '#000000', 0.35);
+  for (let t = 0.45; contrastRatio(on, face) < 4.5 && t <= 0.95; t += 0.1) on = mix(fill, '#000000', t);
+  return { face, edge, on };
+}
+
+function pastel(p: SemanticPalette, solidFill: string): SemanticPalette {
+  const { face, edge, on } = pastelFill(solidFill);
+  return { ...p, accentSurface: face, accentBorder: face, accentEdge: edge, accentOn: on };
+}
+
 // High contrast: secondary text becomes primary, muted becomes secondary and
 // hairlines darken, so nothing relies on a faint grey to be read.
 function withContrast(p: SemanticPalette, contrast: Contrast): SemanticPalette {
@@ -146,7 +168,11 @@ export function resolvePalette(scheme: Scheme, palette: PaletteId = 'sage', cont
   if (hit) return hit;
   const base = semantic[scheme] as SemanticPalette;
   const roles = palette === 'sage' ? base : fromRoles(base, RETASKABLE[palette][scheme]);
-  const resolved = withContrast(roles, contrast);
+  // Sage's own fill (sage-700) is a muted green that greys out when softened;
+  // its brighter sage-500 gives a clearer pastel.
+  const solidFill = palette === 'sage' ? colors.sage[500] : RETASKABLE[palette].light.fill;
+  const shaped = scheme === 'light' ? pastel(roles, solidFill) : roles;
+  const resolved = withContrast(shaped, contrast);
   cache.set(key, resolved);
   return resolved;
 }
@@ -196,10 +222,19 @@ export function rgbChannels(hexColor: string): string {
   return rgb(hexColor).join(' ');
 }
 
-/** CSS variables for NativeWind's vars(): --sand-50 … --sage-900 and --brand-*. */
-export function paletteVars(palette: PaletteId): Record<string, string> {
+/**
+ * CSS variables for NativeWind's vars(): --sand-50 … --sage-900, --brand-*,
+ * and --accent-fill / --accent-on — the filled-control face and its label for
+ * the given scheme, so `bg-accent-fill` matches the library's buttons in both
+ * modes (pastel in light).
+ */
+export function paletteVars(palette: PaletteId, scheme: Scheme = 'light', contrast: Contrast = 'default'): Record<string, string> {
   const { sand, sage } = paletteRamps(palette);
-  const out: Record<string, string> = {};
+  const resolved = resolvePalette(scheme, palette, contrast);
+  const out: Record<string, string> = {
+    '--accent-fill': rgbChannels(resolved.accentSurface),
+    '--accent-on': rgbChannels(resolved.accentOn),
+  };
   for (const [step, value] of Object.entries(sand)) out[`--sand-${step}`] = rgbChannels(value);
   for (const [step, value] of Object.entries(sage)) {
     out[`--sage-${step}`] = rgbChannels(value);
