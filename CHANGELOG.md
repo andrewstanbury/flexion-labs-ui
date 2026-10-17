@@ -3,7 +3,26 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
-## v0.35.1
+## v0.36.0
+
+**The flexionlabs.com look, applied across the apps.**
+
+- New `composites/Website.tsx`: `HeroBanner` (photo or placeholder art under a
+  deep-sage wash, glass eyebrow pill, big white heading, subtitle, actions,
+  top-right slot) + `HeroPill`; `ArtPlaceholder` (the site's striped tonal
+  placeholder with a caption chip carrying the brief for the real image);
+  `SectionTitle` (accent eyebrow, big heading, lead); `FeatureCard` (icon tile
+  card); `CalloutCard` (the pink "Are you a practitioner?" callout).
+- `AuthScreenShell` is now the website hero: placeholder photo + wash with the
+  heading, the FlexionLabs mark on the hero's edge, the form on the cream sheet
+  below. Same props (+ optional `heroBrief`), so every auth screen in both apps
+  changes with it.
+- Cards are rounder and softer like the site: `radius.card` 13 → 20, card
+  shadow 0 6px 18px at 6% (still well under the modal shadow).
+- `SectionHeader` labels use the site's accent eyebrow style.
+- `react-native-svg` and `expo-linear-gradient` are optional peers, loaded on
+  first use (both apps already ship them).
+
 
 **Narrator hardening for real devices** (behaviour the mocks did not model):
 

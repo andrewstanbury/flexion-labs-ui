@@ -18,6 +18,7 @@ import { Banner, Meter, StageStrip, StateLine, StepTrail, Tile } from './Status'
 import { BottomBar, ChatBubble, Disclosure, Grid, MoreMenu, Panel, Properties } from './Structure';
 import { NumberField, TextField } from './Fields';
 import { AppearanceSection } from './AppearanceSection';
+import { ArtPlaceholder, CalloutCard, FeatureCard, HeroBanner, HeroPill, SectionTitle } from './Website';
 
 // UIKit — every design-system component on one scrolling page, with physio
 // examples. Mount it on a dev-only route in either app to review the library
@@ -58,7 +59,26 @@ export function UIKit() {
       style={{ flex: 1, backgroundColor: t.surface }}
       contentContainerStyle={{ padding: layout.screenX, paddingBottom: space[16], gap: space[6], maxWidth: 720 }}
     >
+      <View style={{ marginHorizontal: -layout.screenX, marginTop: -layout.screenX }}>
+        <HeroBanner
+          eyebrow="Your home exercise program"
+          title="Recover with exercises you can actually follow."
+          subtitle="Step-by-step guides, a narrator, and your progress in one place."
+          right={<HeroPill label="Awards" icon="trophy-outline" onPress={noop} />}
+        >
+          <Button.Primary fullWidth={false}>Start today&apos;s session</Button.Primary>
+        </HeroBanner>
+      </View>
       <Text variant="display">UI kit</Text>
+
+      <Section title="Website">
+        <SectionTitle eyebrow="Features" title="Track your recovery journey" lead="Everything you need to do your exercises well." />
+        <FeatureCard icon="list-outline" title="Step-by-step guides" body="Every exercise broken into clear illustrated steps." />
+        <FeatureCard icon="volume-high-outline" tone="highlight" title="See it, hear it, do it" body="A narrator walks you through each step." />
+        <CalloutCard icon="person-outline" title="Are you a practitioner?" body="Build programs and invite patients." onPress={noop} />
+        <ArtPlaceholder brief="Patient doing a calf raise at home, side view" aspectRatio={16 / 10} />
+        <ArtPlaceholder kind="illustration" tone="blossom" brief="Character flipping through exercise cards" aspectRatio={1} style={{ width: 140 }} />
+      </Section>
 
       <Section title="Appearance">
         <Text variant="caption" color="secondary">
