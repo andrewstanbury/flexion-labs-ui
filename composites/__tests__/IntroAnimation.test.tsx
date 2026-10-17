@@ -50,4 +50,26 @@ describe('IntroAnimation', () => {
     const style = [getByTestId('intro-animation').props.style].flat(3);
     expect(style.some((s: { backgroundColor?: string } | undefined) => s?.backgroundColor === LOOK.background)).toBe(true);
   });
+
+  it('reports its first frame once, for the app to hide the native splash', async () => {
+    const onFirstFrame = jest.fn();
+    const { getByTestId } = await mount(jest.fn(), { onFirstFrame, splashSize: 200 });
+    const layout = { nativeEvent: { layout: { x: 0, y: 0, width: 390, height: 844 } } };
+    fireEvent(getByTestId('intro-animation'), 'layout', layout);
+    fireEvent(getByTestId('intro-animation'), 'layout', layout);
+    expect(onFirstFrame).toHaveBeenCalledTimes(1);
+  });
+
+  it('holds the first frame for holdMs before moving', async () => {
+    const onDone = jest.fn();
+    await mount(onDone, { holdMs: 3000 });
+    await act(async () => {
+      jest.advanceTimersByTime(3000);
+    });
+    expect(onDone).not.toHaveBeenCalled();
+    await act(async () => {
+      jest.advanceTimersByTime(6000);
+    });
+    expect(onDone).toHaveBeenCalledTimes(1);
+  });
 });

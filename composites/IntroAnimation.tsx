@@ -4,9 +4,11 @@ import { Text } from '../primitives/Text';
 import { useReducedMotion } from '../UIProvider';
 
 // The app's opening moment (v0.39.0). It starts on exactly the frame the
-// native splash shows — the splash image's F, drawn at the size and place
-// `resizeMode: 'contain'` gives it — so the hand-off from the native splash is
-// invisible. Then the website's dot pops in beside the F (the flexionlabs.com
+// native splash shows — the splash image's F, at the size and place the
+// native splash draws it (`splashSize`: expo-splash-screen's `imageWidth`,
+// centred; v0.40.0) — so the app can hide the native splash the moment the
+// intro has drawn its first frame (`onFirstFrame`) and nothing visibly
+// changes. Then the website's dot pops in beside the F (the flexionlabs.com
 // logo, complete), the mark draws up and shrinks as the wordmark and tagline
 // rise in under it, and the whole layer fades away over the app.
 //
@@ -36,10 +38,30 @@ export type IntroAnimationProps = {
   dot: string;
   brand?: string;
   tagline?: string;
+  /**
+   * The width the native splash draws its (square) image at, in points: the
+   * expo-splash-screen plugin's `imageWidth`. Omitted, the image fills the
+   * shorter screen side (the legacy `resizeMode: 'contain'` splash).
+   */
+  splashSize?: number;
+  /** Called once the first frame — identical to the native splash — is on screen. */
+  onFirstFrame?: () => void;
+  /** How long the first frame holds before the dot pops in (ms): time for the native splash to fade off. */
+  holdMs?: number;
   onDone: () => void;
 };
 
-export function IntroAnimation({ background, ink, dot, brand = 'FlexionLabs', tagline, onDone }: IntroAnimationProps) {
+export function IntroAnimation({
+  background,
+  ink,
+  dot,
+  brand = 'FlexionLabs',
+  tagline,
+  splashSize,
+  onFirstFrame,
+  holdMs = 120,
+  onDone,
+}: IntroAnimationProps) {
   const { width, height } = useWindowDimensions();
   const reduceMotion = useReducedMotion();
   const dotIn = useRef(new Animated.Value(0)).current;
@@ -51,8 +73,16 @@ export function IntroAnimation({ background, ink, dot, brand = 'FlexionLabs', ta
   doneRef.current = onDone;
 
   const native = Platform.OS !== 'web';
-  const side = Math.min(width, height); // the splash image, contained
+  const side = splashSize ?? Math.min(width, height); // the splash image, as the native splash draws it
   const unit = side / 1024;
+  // Where the mark settles, whatever size it started at.
+  const settled = (Math.min(width, height) * 0.42) / side;
+  const firstFrame = useRef(false);
+  const reportFirstFrame = () => {
+    if (firstFrame.current) return;
+    firstFrame.current = true;
+    onFirstFrame?.();
+  };
   const lift = -Math.min(110, height * 0.12);
 
   const fadeOut = () => {
@@ -75,7 +105,7 @@ export function IntroAnimation({ background, ink, dot, brand = 'FlexionLabs', ta
       return () => clearTimeout(id);
     }
     const run = Animated.sequence([
-      Animated.delay(120),
+      Animated.delay(holdMs),
       Animated.spring(dotIn, { toValue: 1, friction: 5, tension: 120, useNativeDriver: native }),
       Animated.parallel([
         Animated.timing(settle, {
@@ -102,7 +132,7 @@ export function IntroAnimation({ background, ink, dot, brand = 'FlexionLabs', ta
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const markScale = settle.interpolate({ inputRange: [0, 1], outputRange: [1, 0.42] });
+  const markScale = settle.interpolate({ inputRange: [0, 1], outputRange: [1, settled] });
   const markLift = settle.interpolate({ inputRange: [0, 1], outputRange: [0, lift] });
   const exitScale = fade.interpolate({ inputRange: [0, 1], outputRange: [1.06, 1] });
   const wordsRise = words.interpolate({ inputRange: [0, 1], outputRange: [14, 0] });
@@ -110,6 +140,7 @@ export function IntroAnimation({ background, ink, dot, brand = 'FlexionLabs', ta
   return (
     <Animated.View
       testID="intro-animation"
+      onLayout={reportFirstFrame}
       style={[StyleSheet.absoluteFill, { zIndex: 1000, elevation: 1000, backgroundColor: background, opacity: fade }]}
     >
       <Pressable
@@ -165,7 +196,7 @@ export function IntroAnimation({ background, ink, dot, brand = 'FlexionLabs', ta
               position: 'absolute',
               left: 24,
               right: 24,
-              top: height / 2 + lift + side * 0.26,
+              top: height / 2 + lift + Math.min(width, height) * 0.26,
               alignItems: 'center',
               gap: 6,
               opacity: words,

@@ -3,6 +3,23 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.40.0
+
+**Seamless launch, and cached media that follows the server.**
+
+- `IntroAnimation` gains `splashSize` (the native splash's `imageWidth`, so
+  the first frame matches it exactly), `onFirstFrame` (the app hides the
+  native splash then) and `holdMs` (how long that frame holds while the
+  native splash fades). The mark settles at the same size whatever it
+  started at.
+- Media cache: each cached file records the object it came from (a `.src`
+  sidecar). `useMediaUri` still shows a cached file at once and offline, but
+  now also asks the server what it serves and re-downloads when that
+  changed — an exercise viewed before its generated panels were approved no
+  longer keeps its original thumbnail on that phone. Files cached before
+  this have no sidecar and refresh once. New exports: `cachedSource`,
+  `isCachedFrom`, `mediaSourceOf`.
+
 ## v0.39.0
 
 **Status strip (after Retaskable) and the intro animation.**
