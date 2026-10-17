@@ -13,8 +13,13 @@ import { PanelCarousel, type PanelStep } from '../PanelCarousel';
 const speak = Speech.speak as jest.Mock;
 const stop = Speech.stop as jest.Mock;
 const createPlayer = createAudioPlayer as jest.Mock;
-// jest.setup.ts hands back one shared mock player.
-const player = () => createPlayer();
+// jest.setup.ts: one mock player per recording; every player's calls land on
+// shared spies (play(uri, pos), seekTo(sec, uri), pause(uri)).
+ 
+const audioMock = require('expo-audio');
+const player = () => audioMock.__spies;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const playerFor = (uri: string): any => audioMock.__players.filter((p: { uri: string }) => p.uri === uri).pop();
 
 // Panel A: 4.0s recording + 200ms buffer + 0.5s hold = 4700ms.
 // Panel B: 3.0s recording + 200ms buffer + 0.5s hold = 3700ms. Total 8400ms.
@@ -34,26 +39,14 @@ function mount(props: Partial<React.ComponentProps<typeof PanelCarousel>> = {}) 
   return utils;
 }
 
-const lastSeek = () => {
-  const calls = player().seekTo.mock.calls;
-  return calls.length ? calls[calls.length - 1][0] : undefined;
-};
-// Where the most recent clip start began, in seconds: the last seek if it came
-// after the last source change, else 0 (a freshly loaded clip starts at 0).
-const startedAt = () => {
-  const p = player();
-  const lastOrder = (m: jest.Mock) => {
-    const o = m.mock.invocationCallOrder;
-    return o.length ? o[o.length - 1] : -1;
-  };
-  return lastOrder(p.seekTo) > lastOrder(p.replace) ? lastSeek() : 0;
-};
-const lastSource = () => {
-  const replaced = player().replace.mock.calls;
-  if (replaced.length) return replaced[replaced.length - 1][0].uri;
-  const created = createPlayer.mock.calls.filter((c) => c[0]);
-  return created.length ? created[created.length - 1][0].uri : undefined;
-};
+const lastCall = (m: jest.Mock) => m.mock.calls[m.mock.calls.length - 1];
+const lastSeek = () => lastCall(player().seekTo)?.[0];
+/** Where the most recent clip start began, in seconds. */
+const startedAt = () => lastCall(player().play)?.[1];
+/** The recording most recently started. */
+const lastSource = () => lastCall(player().play)?.[0];
+/** Every recording started, in order. */
+const started = (): string[] => player().play.mock.calls.map((c: [string]) => c[0]);
 
 // PanResponder computes drag state from RN's native touch history, which a
 // synthetic event does not carry — so these build one. One active touch whose
@@ -98,9 +91,7 @@ const xFor = (ms: number) => 12 + (ms / TOTAL_MS) * (300 - 24);
 const playFor = (ms: number) => {
   for (let t = 0; t < ms; t += 100) act(() => jest.advanceTimersByTime(100));
 };
-// Presses that change the clip within ClipSequencer's settle window (120ms)
-// of the previous start are coalesced: the load waits for the presses to stop.
-// Tests act faster than any finger, so they let it settle like a device would.
+// Lets pending timers run, as a moment passing on a device would.
 const settle = () => act(() => jest.advanceTimersByTime(150));
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const isPlaying = (getByTestId: any) => getByTestId('c-toggle').props.accessibilityLabel === 'Pause';
@@ -111,6 +102,7 @@ describe('PanelCarousel playback — behaves like a video with a narrator track'
   beforeEach(() => {
     jest.useFakeTimers();
     jest.clearAllMocks();
+    audioMock.__players.length = 0;
     clock = 1000;
     // Never settles: a resolved value would update state after the synchronous
     // test body, outside act(). Screen reader stays at its initial "off".
@@ -153,11 +145,7 @@ describe('PanelCarousel playback — behaves like a video with a narrator track'
 
     it('a new exercise forgets recordings that failed on the previous one', () => {
       const { rerender, getByTestId } = mount();
-      const listener = player().addListener.mock.calls[0][1];
-      // The retry's reload fails the same way.
-      player().replace.mockImplementationOnce(() => listener({ error: 'HTTP 403' }));
-      act(() => listener({ error: 'HTTP 403' }));
-      settle(); // the retry reloads, and fails past the retry budget
+      act(() => playerFor('https://cdn/a.mp3').__emit({ error: 'HTTP 403' }));
       expect(speak).toHaveBeenCalled(); // fell back to TTS for a.mp3
       speak.mockClear();
       player().play.mockClear();
@@ -165,10 +153,8 @@ describe('PanelCarousel playback — behaves like a video with a narrator track'
       fireEvent(getByTestId('c'), 'layout', { nativeEvent: { layout: { width: 300, height: 300 } } });
       // Same URL, fresh exercise: the recording gets another chance.
       expect(lastSource()).toBe('https://cdn/a.mp3');
-      expect(player().play).toHaveBeenCalled();
       expect(speak).not.toHaveBeenCalled();
     });
-
     it('a recording that arrives after playback started takes over from on-device speech', () => {
       const textOnly = STEPS.map(({ text, holdSeconds }) => ({ text, holdSeconds }));
       const { rerender } = render(
@@ -339,6 +325,22 @@ describe('PanelCarousel playback — behaves like a video with a narrator track'
       expect(startedAt()).toBe(0);
     });
 
+    it('next on the last panel goes to the end — stopped, silent, replay offered — like playing through', () => {
+      const { getByTestId } = mount();
+      act(() => jest.advanceTimersByTime(A_MS + 500)); // on the last panel
+      reveal(getByTestId);
+      player().play.mockClear();
+      fireEvent.press(getByTestId('c-next'));
+      settle();
+      expect(isPlaying(getByTestId)).toBe(false);
+      expect(getByTestId('c-toggle').props.accessibilityLabel).toBe('Replay');
+      expect(player().play).not.toHaveBeenCalled(); // not back to the panel's start
+      player().play.mockClear();
+      fireEvent.press(getByTestId('c-toggle'));
+      expect(lastSource()).toBe('https://cdn/a.mp3');
+      expect(player().play).toHaveBeenCalledTimes(1);
+    });
+
     it('keeps the playback rate after a resume', () => {
       const { getByTestId } = mount();
       reveal(getByTestId);
@@ -346,11 +348,24 @@ describe('PanelCarousel playback — behaves like a video with a narrator track'
       fireEvent.press(getByTestId('c-toggle'));
       player().setPlaybackRate.mockClear();
       fireEvent.press(getByTestId('c-toggle'));
-      expect(player().setPlaybackRate).toHaveBeenLastCalledWith(0.75);
+      expect(player().setPlaybackRate).toHaveBeenLastCalledWith(0.75, 'https://cdn/a.mp3');
     });
   });
 
-  describe('first clip — same path and audio session as every other clip', () => {
+  describe('buffering — the narrator is ready before it is needed', () => {
+    // Recordings load slowly from now on in the test that calls this.
+    const slowLoads = (uris: string[]) => {
+      const make = createPlayer.getMockImplementation()!;
+      createPlayer.mockImplementation((source: { uri: string }) => {
+        const p = make(source);
+        if (uris.includes(source?.uri)) p.isLoaded = false;
+        return p;
+      });
+      return () => createPlayer.mockImplementation(make);
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const progress = (getByTestId: any) => getByTestId('c-timeline').props.accessibilityValue.now;
+
     it('prepares the audio session before the viewer presses play', () => {
       const setMode = require('expo-audio').setAudioModeAsync as jest.Mock;
       mount({ autoPlay: false });
@@ -358,48 +373,100 @@ describe('PanelCarousel playback — behaves like a video with a narrator track'
       expect(player().play).not.toHaveBeenCalled();
     });
 
-    it('loads the first clip into an empty player via replace, like every later clip', () => {
-      mount();
-      expect(createPlayer).toHaveBeenCalledWith(null);
-      expect(player().replace).toHaveBeenCalledWith({ uri: 'https://cdn/a.mp3' });
-      expect(player().play).toHaveBeenCalledTimes(1);
+    it('buffers every recording when the player mounts, each in its own player', () => {
+      mount({ autoPlay: false });
+      expect(createPlayer.mock.calls.map((c) => c[0].uri)).toEqual(['https://cdn/a.mp3', 'https://cdn/b.mp3']);
+      expect(createPlayer.mock.calls[0][1]).toMatchObject({ keepAudioSessionActive: true });
+      expect(player().play).not.toHaveBeenCalled();
     });
 
-    it('seeks and plays a fresh clip only once the player reports it loaded', () => {
+    it('holds the clock — with a spinner — until the recording is ready, then starts both together', () => {
+      const restore = slowLoads(['https://cdn/a.mp3']);
+      try {
+        const { getByTestId, queryByTestId } = mount();
+        playFor(1000);
+        expect(player().play).not.toHaveBeenCalled();
+        expect(progress(getByTestId)).toBe(0); // the panel did not run ahead
+        expect(isPlaying(getByTestId)).toBe(true);
+        expect(getByTestId('c-buffering')).toBeTruthy();
+        act(() => playerFor('https://cdn/a.mp3').__emit({ isLoaded: true }));
+        expect(lastSource()).toBe('https://cdn/a.mp3');
+        expect(startedAt()).toBe(0);
+        expect(queryByTestId('c-buffering')).toBeNull();
+        playFor(1000);
+        expect(progress(getByTestId)).toBeGreaterThan(0);
+      } finally {
+        restore();
+      }
+    });
+
+    it('the clock waits for each panel’s recording to actually start — narration is never cut short', () => {
       const { getByTestId } = mount();
-      const p = player();
-      act(() => jest.advanceTimersByTime(500));
-      // Make the next load slow, as on a device: replace() returns before the
-      // new source is ready, and the player still reports the OLD one loaded.
-      p.replace.mockImplementationOnce(() => p.__emit({ isLoaded: true, playing: false }));
-      p.seekTo.mockClear();
-      p.play.mockClear();
-      scrub(getByTestId, xFor(A_MS + 900)); // into panel B: a fresh clip
-      settle();
+      const b = () => playerFor('https://cdn/b.mp3');
+      // Panel B's play is pressed but iOS has not reported "playing" yet.
+      const press = b().play;
+      b().play = () => player().play('https://cdn/b.mp3', b().pos); // no status event
+      playFor(A_MS + 200);
       expect(lastSource()).toBe('https://cdn/b.mp3');
-      expect(p.seekTo).not.toHaveBeenCalled();
-      expect(p.play).not.toHaveBeenCalled();
-      act(() => p.__emit({ isLoaded: false }));
-      act(() => p.__emit({ isLoaded: true }));
-      expect(p.seekTo).toHaveBeenCalledTimes(1);
-      expect(p.seekTo.mock.calls[0][0]).toBeGreaterThan(0.7);
-      expect(p.play).toHaveBeenCalledTimes(1);
-      // Later status updates must not keep yanking the playhead.
-      act(() => p.__emit({ isLoaded: true, playing: true }));
-      expect(p.seekTo).toHaveBeenCalledTimes(1);
+      const held = progress(getByTestId);
+      playFor(400);
+      expect(progress(getByTestId)).toBe(held);
+      act(() => b().__emit({ isLoaded: true, playing: true }));
+      playFor(400);
+      expect(progress(getByTestId)).toBeGreaterThan(held);
+      b().play = press;
     });
 
-    it('a clip already loaded is rewound before it plays again', () => {
+    it('a recording that never becomes ready is spoken instead — the player never waits forever', () => {
+      const restore = slowLoads(['https://cdn/a.mp3']);
+      try {
+        const { getByTestId } = mount();
+        act(() => jest.advanceTimersByTime(8000));
+        settle();
+        expect(speak).toHaveBeenCalledWith(STEPS[0].text, expect.any(Object));
+        expect(isPlaying(getByTestId)).toBe(true);
+      } finally {
+        restore();
+      }
+    });
+
+    it('narration turned off while a recording buffers lets the clock run — nothing waits for a silent narrator', () => {
+      const restore = slowLoads(['https://cdn/a.mp3']);
+      try {
+        const { getByTestId, rerender } = mount();
+        playFor(500);
+        expect(progress(getByTestId)).toBe(0);
+        rerender(<PanelCarousel uris={URIS} steps={STEPS} intervalMs={500} testID="c" />);
+        playFor(1000);
+        expect(progress(getByTestId)).toBeGreaterThan(0);
+        expect(speak).not.toHaveBeenCalled();
+      } finally {
+        restore();
+      }
+    });
+
+    it('a recording already played is rewound before it plays again', () => {
       const { getByTestId } = mount();
       act(() => jest.advanceTimersByTime(2000));
       reveal(getByTestId);
       player().seekTo.mockClear();
       fireEvent.press(getByTestId('c-restart'));
       const p = player();
-      expect(p.seekTo).toHaveBeenCalledWith(0);
+      expect(p.seekTo).toHaveBeenCalledWith(0, 'https://cdn/a.mp3');
       expect(p.seekTo.mock.invocationCallOrder[0]).toBeLessThan(
         p.play.mock.invocationCallOrder[p.play.mock.invocationCallOrder.length - 1],
       );
+      expect(startedAt()).toBe(0);
+    });
+
+    it('only one recording plays at a time — starting one pauses the rest', () => {
+      const { getByTestId } = mount();
+      act(() => jest.advanceTimersByTime(1000));
+      reveal(getByTestId);
+      player().pause.mockClear();
+      fireEvent.press(getByTestId('c-next'));
+      expect(player().pause).toHaveBeenCalledWith('https://cdn/a.mp3');
+      expect(lastSource()).toBe('https://cdn/b.mp3');
     });
   });
 
@@ -413,9 +480,9 @@ describe('PanelCarousel playback — behaves like a video with a narrator track'
       settle();
       expect(lastSource()).toBe('https://cdn/a.mp3');
       expect(startedAt()).toBe(0);
-      player().replace.mockClear();
+      player().play.mockClear();
       act(() => jest.advanceTimersByTime(1000)); // the clock keeps running from panel A
-      expect(player().replace).not.toHaveBeenCalled(); // no jump back to B
+      expect(player().play).not.toHaveBeenCalled(); // no jump back to B
       expect(isPlaying(getByTestId)).toBe(true);
     });
 
@@ -471,41 +538,35 @@ describe('PanelCarousel playback — behaves like a video with a narrator track'
       expect(isPlaying(getByTestId)).toBe(true);
       expect(lastSource()).toBe('https://cdn/a.mp3');
       expect(startedAt()).toBe(0);
-      const p = player();
-      const lastPlay = p.play.mock.invocationCallOrder[p.play.mock.invocationCallOrder.length - 1];
-      expect(lastPlay).toBeGreaterThan(p.replace.mock.invocationCallOrder[p.replace.mock.invocationCallOrder.length - 1]);
+      expect(lastCall(player().pause)?.[0]).not.toBe('https://cdn/a.mp3');
     });
-
-    it('next and back before a slow load finishes never plays the abandoned clip', () => {
-      const { getByTestId } = mount();
-      act(() => jest.advanceTimersByTime(1000));
-      const p = player();
-      // Loads now report nothing until the test says so, as on a slow device.
-      const emitting = p.replace.getMockImplementation();
-      p.replace.mockImplementation(() => {});
-      reveal(getByTestId);
-      fireEvent.press(getByTestId('c-next')); // starts loading b.mp3
-      p.play.mockClear();
-      fireEvent.press(getByTestId('c-prev')); // back before b.mp3 loaded
-      settle();
-      act(() => p.__emit({ isLoaded: false }));
-      act(() => p.__emit({ isLoaded: true })); // b's late load confirmation...
-      // ...is taken for a.mp3's, the source the player was last given.
-      expect(lastSource()).toBe('https://cdn/a.mp3');
-      expect(p.play).toHaveBeenCalledTimes(1);
-      act(() => p.__emit({ isLoaded: true, playing: true }));
-      playFor(2000);
-      expect(lastSource()).toBe('https://cdn/a.mp3');
-      expect(p.play).toHaveBeenCalledTimes(1);
-      expect(isPlaying(getByTestId)).toBe(true);
-      p.replace.mockImplementation(emitting);
+    it('next and back while the next recording is still buffering never plays it late', () => {
+      const make = createPlayer.getMockImplementation()!;
+      createPlayer.mockImplementation((source: { uri: string }) => {
+        const p = make(source);
+        if (source?.uri === 'https://cdn/b.mp3') p.isLoaded = false;
+        return p;
+      });
+      try {
+        const { getByTestId } = mount();
+        act(() => jest.advanceTimersByTime(1000));
+        reveal(getByTestId);
+        fireEvent.press(getByTestId('c-next')); // b.mp3 still buffering: the clock holds
+        fireEvent.press(getByTestId('c-prev')); // back before it is ready
+        expect(lastSource()).toBe('https://cdn/a.mp3');
+        act(() => playerFor('https://cdn/b.mp3').__emit({ isLoaded: true })); // ready, too late
+        playFor(1000);
+        expect(started()).not.toContain('https://cdn/b.mp3');
+        expect(lastSource()).toBe('https://cdn/a.mp3');
+        expect(isPlaying(getByTestId)).toBe(true);
+      } finally {
+        createPlayer.mockImplementation(make);
+      }
     });
-
-    it('a burst of next/back presses loads only where it lands', () => {
+    it('a burst of next/back presses ends with only the landing panel’s recording playing', () => {
       const { getByTestId } = mount();
       act(() => jest.advanceTimersByTime(1000));
       reveal(getByTestId);
-      player().replace.mockClear();
       for (let i = 0; i < 3; i++) {
         fireEvent.press(getByTestId('c-next'));
         act(() => jest.advanceTimersByTime(40));
@@ -514,12 +575,15 @@ describe('PanelCarousel playback — behaves like a video with a narrator track'
       }
       fireEvent.press(getByTestId('c-next'));
       settle();
-      const sources = player().replace.mock.calls.map((c: [{ uri: string }]) => c[0].uri);
-      expect(sources[sources.length - 1]).toBe('https://cdn/b.mp3');
-      expect(sources.length).toBeLessThanOrEqual(2); // the first next, then where it landed
+      expect(lastSource()).toBe('https://cdn/b.mp3');
+      expect(startedAt()).toBe(0);
       expect(isPlaying(getByTestId)).toBe(true);
+      // Nothing started after the landing clip, and a.mp3 was paused after its last start.
+      const p = player();
+      const lastPlayA = Math.max(...p.play.mock.calls.flatMap((c: [string], i: number) => (c[0] === 'https://cdn/a.mp3' ? [p.play.mock.invocationCallOrder[i]] : [])));
+      const lastPauseA = Math.max(...p.pause.mock.calls.flatMap((c: [string], i: number) => (c[0] === 'https://cdn/a.mp3' ? [p.pause.mock.invocationCallOrder[i]] : [])));
+      expect(lastPauseA).toBeGreaterThan(lastPlayA);
     });
-
     it('controls stay up while the viewer keeps pressing them — the auto-hide restarts on each press', () => {
       const { getByTestId } = mount();
       reveal(getByTestId);
@@ -542,8 +606,7 @@ describe('PanelCarousel playback — behaves like a video with a narrator track'
       const { getByTestId } = mount({ uris: ['a.png', 'b.png', 'c.png'], steps: mixed });
       playFor(12000);
       expect(speak).toHaveBeenCalledWith('Hold at the top.', expect.any(Object));
-      const sources = player().replace.mock.calls.map((c: [{ uri: string }]) => c[0].uri);
-      expect(sources).toEqual(['https://cdn/a.mp3', 'https://cdn/c.mp3']);
+      expect(started()).toEqual(['https://cdn/a.mp3', 'https://cdn/c.mp3']);
       speak.mockClear();
       player().play.mockClear();
       fireEvent.press(getByTestId('c-toggle')); // replay from the end
@@ -556,43 +619,20 @@ describe('PanelCarousel playback — behaves like a video with a narrator track'
   });
 
   describe('device behaviour', () => {
-    it('one error from a recording is retried — it reloads and keeps playing the recording', () => {
-      mount();
-      const listener = player().addListener.mock.calls[0][1];
-      player().replace.mockClear();
-      player().play.mockClear();
-      act(() => listener({ error: 'cancelled' }));
-      settle();
-      expect(player().replace).toHaveBeenCalledWith({ uri: 'https://cdn/a.mp3' });
-      expect(player().play).toHaveBeenCalledTimes(1);
-      expect(speak).not.toHaveBeenCalled();
-    });
-
-    it('an error while nothing should be playing (an abandoned load) does not count against the recording', () => {
+    it('a recording that errors while playing falls back to speech for its panel at once', () => {
       const { getByTestId } = mount();
-      const listener = player().addListener.mock.calls[0][1];
-      reveal(getByTestId);
-      fireEvent.press(getByTestId('c-toggle')); // pause
-      act(() => listener({ error: 'cancelled' }));
-      act(() => listener({ error: 'cancelled' }));
-      act(() => listener({ error: 'cancelled' }));
-      player().play.mockClear();
-      fireEvent.press(getByTestId('c-toggle')); // resume
-      settle();
-      expect(lastSource()).toBe('https://cdn/a.mp3');
-      expect(player().play).toHaveBeenCalledTimes(1);
-      expect(speak).not.toHaveBeenCalled();
+      act(() => playerFor('https://cdn/a.mp3').__emit({ error: 'HTTP 403' }));
+      expect(speak).toHaveBeenCalledWith(STEPS[0].text, expect.any(Object));
+      expect(isPlaying(getByTestId)).toBe(true);
     });
-
-    it('a successful load resets the retry budget, so later errors are retried again', () => {
+    it('a later panel’s recording that fails while buffering is spoken when its panel comes', () => {
       mount();
-      const listener = player().addListener.mock.calls[0][1];
-      act(() => listener({ error: 'cancelled' }));
-      act(() => listener({ isLoaded: true }));
-      act(() => listener({ error: 'cancelled' }));
-      expect(speak).not.toHaveBeenCalled();
+      act(() => playerFor('https://cdn/b.mp3').__emit({ error: 'HTTP 403' }));
+      expect(speak).not.toHaveBeenCalled(); // panel A's recording is unaffected
+      playFor(6000);
+      expect(speak).toHaveBeenCalledWith(STEPS[1].text, expect.any(Object));
+      expect(started()).not.toContain('https://cdn/b.mp3');
     });
-
     it('speech right after stopping speech waits out the stop, and a newer take cancels it', () => {
       const textOnly = [{ text: 'One.', holdSeconds: 0.5 }, { text: 'Two.', holdSeconds: 0.5 }, { text: 'Three.' }];
       const { getByTestId } = render(

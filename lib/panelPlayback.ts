@@ -45,6 +45,13 @@ export type PlaybackState = {
   generation: number;
   /** Where narration starts for this generation: the panel and the offset into it. */
   anchor: { panel: number; offsetMs: number };
+  /**
+   * The narration take the clock is waiting for, or null. A recording that
+   * has not audibly started yet holds the clock — as a video holds while it
+   * buffers — so the panel can never move on before (or while) its narrator
+   * speaks. Cleared by `narrationStarted`, any discontinuity, or a pause.
+   */
+  awaiting: string | null;
 };
 
 export type PlaybackAction =
@@ -65,7 +72,11 @@ export type PlaybackAction =
   /** The timeline's durations changed (e.g. a recording failed and fell back to speech). */
   | { type: 'retime' }
   /** A new sequence: back to the start, playing iff autoPlay. */
-  | { type: 'reset'; autoPlay: boolean };
+  | { type: 'reset'; autoPlay: boolean }
+  /** The narrator was told to play this take; hold the clock until it starts. */
+  | { type: 'awaitNarration'; key: string }
+  /** That take is audibly playing (or was given up on): run the clock. */
+  | { type: 'narrationStarted'; key: string };
 
 export function initialPlayback(autoPlay: boolean): PlaybackState {
   return {
@@ -77,6 +88,7 @@ export function initialPlayback(autoPlay: boolean): PlaybackState {
     resumeAfterScrub: false,
     generation: 0,
     anchor: { panel: 0, offsetMs: 0 },
+    awaiting: null,
   };
 }
 
@@ -97,6 +109,7 @@ function jump(state: PlaybackState, ms: number, boundaries: Boundaries, playing:
     playing: playing && elapsedMs < total,
     generation: state.generation + 1,
     anchor: { panel, offsetMs: elapsedMs - (boundaries[panel] ?? 0) },
+    awaiting: null,
   };
 }
 
@@ -112,7 +125,7 @@ export function reducePlayback(state: PlaybackState, action: PlaybackAction, bou
   }
   switch (action.type) {
     case 'tick': {
-      if (!state.playing || state.scrubbing || action.ms <= 0) return state;
+      if (!state.playing || state.scrubbing || state.awaiting !== null || action.ms <= 0) return state;
       const elapsedMs = Math.min(state.elapsedMs + action.ms * state.speed, total);
       const panel = panelAt(elapsedMs, boundaries);
       const before = panelAt(state.elapsedMs, boundaries);
@@ -132,7 +145,7 @@ export function reducePlayback(state: PlaybackState, action: PlaybackAction, bou
       if (state.elapsedMs >= total) return jump(state, 0, boundaries, true);
       return jump(state, state.elapsedMs, boundaries, true);
     case 'pause':
-      return state.playing ? { ...state, playing: false } : state;
+      return state.playing ? { ...state, playing: false, awaiting: null } : state;
     case 'toggle':
       return reducePlayback(state, { type: state.playing ? 'pause' : 'play' }, boundaries);
     case 'restart':
@@ -140,9 +153,13 @@ export function reducePlayback(state: PlaybackState, action: PlaybackAction, bou
     case 'seek':
       return jump(state, action.ms, boundaries, state.playing);
     case 'step': {
+      // Index `panels` is the end itself: next on the last panel finishes the
+      // sequence exactly as playing through would (stopped, replay offered),
+      // and previous from the end lands on the last panel.
       const panels = boundaries.length - 1;
-      const target = Math.max(0, Math.min(panelAt(state.elapsedMs, boundaries) + action.delta, panels - 1));
-      return jump(state, boundaries[target] ?? 0, boundaries, state.playing && boundaries[target] < total);
+      const from = state.elapsedMs >= total ? panels : panelAt(state.elapsedMs, boundaries);
+      const target = Math.max(0, Math.min(from + action.delta, panels));
+      return jump(state, boundaries[target] ?? 0, boundaries, state.playing);
     }
     case 'scrubStart':
       return {
@@ -167,13 +184,19 @@ export function reducePlayback(state: PlaybackState, action: PlaybackAction, bou
     case 'setMuted':
       if (state.muted === action.muted) return state;
       return action.muted
-        ? { ...state, muted: true }
+        ? { ...state, muted: true, awaiting: null }
         : { ...jump(state, state.elapsedMs, boundaries, state.playing), muted: false };
     case 'resync':
     case 'retime':
       return { ...jump(state, state.elapsedMs, boundaries, state.playing), scrubbing: state.scrubbing };
     case 'reset':
       return { ...initialPlayback(action.autoPlay), speed: state.speed, generation: state.generation + 1 };
+    case 'awaitNarration':
+      return state.playing && !state.scrubbing && state.awaiting !== action.key
+        ? { ...state, awaiting: action.key }
+        : state;
+    case 'narrationStarted':
+      return state.awaiting === action.key ? { ...state, awaiting: null } : state;
   }
 }
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
+  ActivityIndicator,
   Animated,
   GestureResponderEvent,
   PanResponder,
@@ -10,7 +11,6 @@ import {
   ViewStyle,
 } from 'react-native';
 import * as Speech from 'expo-speech';
-import type { AudioPlayer } from 'expo-audio';
 import { Icon } from '../primitives/Icon';
 import { Pressable } from '../primitives/Pressable';
 // The design-system Text, not RN's — the clock readout inherits the same font
@@ -27,7 +27,8 @@ import {
   type PlaybackState,
 } from '../lib/panelPlayback';
 import { NarrationDriver, type NarrationBackend } from '../lib/narrationDriver';
-import { ClipSequencer } from '../lib/clipSequencer';
+import { ClipBank, type BankPlayer } from '../lib/clipBank';
+import { resolveNarrationFile } from '../lib/narrationFiles';
 
 // expo-audio is loaded on first use, never at import time. index.ts re-exports
 // this file, so a top-level import would load the native module for every
@@ -62,11 +63,14 @@ const narratorLog = (...parts: unknown[]) => {
 // stopped (AVSpeechSynthesizer finishes stopping asynchronously). Speech that
 // follows a stop within this window waits it out.
 const SPEECH_RESTART_GAP_MS = 150;
-// A recording that reports an error is reloaded this many times before its
-// panel falls back to speech. Fast scrubbing replaces a clip while the last
-// one is still loading, and iOS reports the abandoned load as an error — that
-// must not condemn a good recording for the rest of the session.
-const CLIP_RETRIES = 1;
+// The longest the clock waits for a recording to start (buffering included)
+// before its panel gives up on it and narrates with speech instead. Recordings
+// are fetched when the player mounts, so this is only reached on a dead
+// network or a broken file — never in normal playback.
+const NARRATION_WAIT_LIMIT_MS = 8000;
+// The clock waiting for its recording only shows a spinner past this, so a
+// normal start (tens of milliseconds from a local file) shows nothing.
+const BUFFERING_SPINNER_DELAY_MS = 300;
 
 const DEFAULT_INTERVAL_MS = 1800;
 const FADE_MS = 900;
@@ -300,6 +304,8 @@ export function PanelCarousel({
     autoPlay && canPlay,
     initialPlayback,
   );
+  const pbRef = useRef(pb);
+  pbRef.current = pb;
   const elapsedMs = Math.min(pb.elapsedMs, totalMs);
   const isPlaying = pb.playing;
   const speed = pb.speed;
@@ -389,11 +395,8 @@ export function PanelCarousel({
       });
   }, [narrate]);
 
-  // ── Narration plumbing: expo-speech + one lazily created expo-audio player ──
-  const audioPlayerRef = useRef<AudioPlayer | null>(null);
-  const audioSubscriptionRef = useRef<{ remove: () => void } | null>(null);
-  const clipUrlRef = useRef<string | null>(null);
-  // The latest intent, for handlers that run outside render (status events).
+  // ── Narration plumbing: expo-speech + a ClipBank of preloaded recordings ──
+  // The latest intent, for handlers that run outside render (bank events).
   const intentRef = useRef<ReturnType<typeof narrationIntent>>({ kind: 'silent', key: 'init' });
   const audioModeSetRef = useRef(false);
   // playsInSilentMode mirrors what useApplicationAudioSession:false buys
@@ -412,64 +415,36 @@ export function PanelCarousel({
   const failClip = (url: string | null) => {
     if (!url || !mountedRef.current) return;
     narratorLog('clip failed for good', url);
-    sequencer.forget();
-    driver.clipFailed();
+    if (intentRef.current.kind === 'clip' && intentRef.current.url === url) driver.clipFailed();
     setFailedAudioUrls((prev) => (prev.includes(url) ? prev : [...prev, url]));
   };
-  // An error from the audio player. Not necessarily the recording's fault —
-  // see CLIP_RETRIES — so reload and retry the current take first.
-  const clipErrorsRef = useRef(new Map<string, number>());
-  const onClipError = (url: string | null, error: unknown) => {
-    if (!url || !mountedRef.current) return;
-    narratorLog('clip error', url, error);
-    sequencer.forget(); // the next start reloads it
-    driver.clipFailed();
-    const current = intentRef.current;
-    // Nothing is meant to be playing (paused, scrubbing, another panel): the
-    // error is from an abandoned load and costs the recording nothing.
-    if (current.kind !== 'clip' || current.url !== url) return;
-    const errors = (clipErrorsRef.current.get(url) ?? 0) + 1;
-    clipErrorsRef.current.set(url, errors);
-    if (errors > CLIP_RETRIES) {
-      failClip(url);
-      return;
-    }
-    narratorLog('retrying clip', url, `(${errors}/${CLIP_RETRIES})`);
-    driver.apply(current);
-  };
-  const ensurePlayer = (): AudioPlayer => {
-    if (audioPlayerRef.current) return audioPlayerRef.current;
-    const audio = loadExpoAudio();
-    if (!audio) throw new Error('expo-audio unavailable');
-    ensureAudioMode(audio);
-    // Created empty: every clip arrives via replace(), sequenced by
-    // ClipSequencer (load → wait → seek → play → confirm).
-    const player = audio.createAudioPlayer(null);
-    audioPlayerRef.current = player;
-    let lastStatus = '';
-    audioSubscriptionRef.current = player.addListener('playbackStatusUpdate', (status) => {
-      const summary = `loaded=${status.isLoaded} playing=${status.playing} finished=${status.didJustFinish}`;
-      if (summary !== lastStatus) {
-        lastStatus = summary;
-        narratorLog('status', sequencerRef.current?.currentSource, summary);
-      }
-      if (status.error) {
-        onClipError(sequencerRef.current?.currentSource ?? null, status.error);
-        return;
-      }
-      sequencerRef.current?.status(status);
-      if (status.isLoaded && status.playing && sequencerRef.current?.currentSource) {
-        clipErrorsRef.current.delete(sequencerRef.current.currentSource);
-      }
+  // One bank per mount: every recording gets its own player, buffered before
+  // its panel comes up (see lib/clipBank.ts).
+  const bankRef = useRef<ClipBank | null>(null);
+  if (!bankRef.current) {
+    bankRef.current = new ClipBank({
+      resolve: resolveNarrationFile,
+      createPlayer: (uri): BankPlayer => {
+        const audio = loadExpoAudio();
+        if (!audio) throw new Error('expo-audio unavailable');
+        ensureAudioMode(audio);
+        return audio.createAudioPlayer(
+          { uri },
+          // Frequent status updates: "playing" is what starts the clock.
+          // keepAudioSessionActive: pausing one clip must not tear down the
+          // audio session the next clip is about to need — reactivating it
+          // is a audible delay on iOS.
+          { updateInterval: 100, keepAudioSessionActive: true },
+        ) as unknown as BankPlayer;
+      },
+      onStarted: (url) => {
+        const current = intentRef.current;
+        if (current.kind === 'clip' && current.url === url) dispatch({ type: 'narrationStarted', key: current.key });
+      },
+      onFailed: (url) => failClip(url),
+      log: narratorLog,
     });
-    return player;
-  };
-  // One sequencer per mount, bound to the (lazily created) player.
-  const sequencerRef = useRef<ClipSequencer | null>(null);
-  if (!sequencerRef.current) {
-    sequencerRef.current = new ClipSequencer(() => ensurePlayer(), { log: narratorLog });
   }
-  const sequencer = sequencerRef.current;
   const speechStartedRef = useRef(false);
   const lastSpeechStopRef = useRef(-Infinity);
   const speechTokenRef = useRef(0);
@@ -511,11 +486,8 @@ export function PanelCarousel({
         }
         Speech.stop();
       },
-      startClip: (url, startMs, rate) => sequencerRef.current?.start(url, startMs / 1000, rate),
-      stopClip: () => {
-        // Nothing to stop before the first clip: don't create a player for it.
-        if (audioPlayerRef.current) sequencerRef.current?.stop();
-      },
+      startClip: (url, startMs, rate) => bankRef.current?.play(url, startMs / 1000, rate),
+      stopClip: () => bankRef.current?.stop(),
     };
     driverRef.current = new NarrationDriver(backend);
   }
@@ -528,22 +500,24 @@ export function PanelCarousel({
     return () => {
       mountedRef.current = false;
       driverRef.current?.reset();
-      // The player is removed below; whatever it had loaded is gone with it.
-      sequencerRef.current?.forget();
-      audioSubscriptionRef.current?.remove();
-      audioSubscriptionRef.current = null;
-      audioPlayerRef.current?.remove();
-      audioPlayerRef.current = null;
+      bankRef.current?.dispose();
+      bankRef.current = null;
     };
   }, []);
 
-  // Prepare the audio session before the viewer presses play.
-  const hasRecordings = !!narrate && !!resolvedSteps?.some((st) => st.audioUrl);
+  // Buffer every recording as soon as the player mounts — before the viewer
+  // presses play, and long before later panels come up — and prepare the
+  // audio session with them.
+  const recordingUrls = narrate ? (resolvedSteps ?? []).flatMap((st) => (st.audioUrl ? [st.audioUrl] : [])) : [];
+  const recordingsKey = recordingUrls.join('|');
   useEffect(() => {
-    if (!hasRecordings) return;
-    const audio = loadExpoAudio();
-    if (audio) ensureAudioMode(audio);
-  }, [hasRecordings]);
+    if (recordingUrls.length) {
+      const audio = loadExpoAudio();
+      if (audio) ensureAudioMode(audio);
+    }
+    bankRef.current?.prepare(recordingUrls);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recordingsKey]);
 
   // Narration is allowed while visible and no screen reader is speaking.
   const narrationEnabled = narrate && active && !screenReaderEnabled;
@@ -557,6 +531,13 @@ export function PanelCarousel({
       intent.kind === 'clip' ? `${intent.url} from ${(intent.startMs / 1000).toFixed(2)}s` : '',
       `@${(pb.elapsedMs / 1000).toFixed(2)}s`,
     );
+    // A recording holds the clock until it is audibly playing. Dispatched
+    // BEFORE apply: a clip that reports "playing" synchronously releases the
+    // hold in the same order.
+    if (intent.kind === 'clip') dispatch({ type: 'awaitNarration', key: intent.key });
+    // Anything else (speech, silence — e.g. a screen reader turned on, or
+    // the player went off-screen) never holds the clock.
+    else if (pbRef.current.awaiting) dispatch({ type: 'narrationStarted', key: pbRef.current.awaiting });
     try {
       driver.apply(intent);
     } catch (error) {
@@ -567,6 +548,32 @@ export function PanelCarousel({
     // The key identifies the take; the rest of the intent is fixed for it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [intent.key]);
+
+  // Backstop for the hold: a recording that has not started in
+  // NARRATION_WAIT_LIMIT_MS is given up on and its panel spoken instead, so
+  // the player can never sit waiting forever. The spinner appears only if the
+  // wait is long enough to notice.
+  const [buffering, setBuffering] = useState(false);
+  useEffect(() => {
+    if (!pb.awaiting) {
+      setBuffering(false);
+      return;
+    }
+    const waitingFor = intentRef.current;
+    const spinner = setTimeout(() => setBuffering(true), BUFFERING_SPINNER_DELAY_MS);
+    const awaiting = pb.awaiting;
+    const limit = setTimeout(() => {
+      narratorLog('narration did not start in time', awaiting);
+      const current = intentRef.current;
+      if (current.kind === 'clip' && current.key === waitingFor.key) failClip(current.url);
+      dispatch({ type: 'narrationStarted', key: awaiting });
+    }, NARRATION_WAIT_LIMIT_MS);
+    return () => {
+      clearTimeout(spinner);
+      clearTimeout(limit);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pb.awaiting]);
 
   // Coming back into view (or a screen reader turning off) picks narration up
   // at the current point rather than where it was suppressed.
@@ -610,7 +617,6 @@ export function PanelCarousel({
     const startPlaying = autoPlay && canPlay;
     if (!firstSequenceRef.current) {
       driver.reset();
-      clipUrlRef.current = null;
       setFailedAudioUrls([]);
       dispatch({ type: 'reset', autoPlay: startPlaying });
     }
@@ -834,6 +840,19 @@ export function PanelCarousel({
               />
             ) : null,
           )}
+          {buffering && isPlaying ? (
+            // The narrator is still buffering and the clock is holding for it,
+            // as a video shows a spinner while it buffers.
+            <View
+              pointerEvents="none"
+              testID={testID ? `${testID}-buffering` : undefined}
+              style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}
+            >
+              <View style={{ padding: 12, borderRadius: 999, backgroundColor: SCRIM_BACKGROUND }}>
+                <ActivityIndicator color={ON_SCRIM_COLOR} accessibilityLabel="Loading narration" />
+              </View>
+            </View>
+          ) : null}
           {canPlay && (
             <Pressable
               testID={testID ? `${testID}-tap-area` : undefined}
