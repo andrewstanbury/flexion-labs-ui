@@ -63,6 +63,19 @@ every tick into a single render, which never happens on a device. Drag tests
 must pass each move's real previous position; React Native accumulates `dx`
 from it.
 
+## Diagnosing a device-only glitch
+
+Development builds (Expo Go, dev client) log every narration decision as
+`[narrator]` lines in the Metro output: each take (key, kind, clip and start
+point, playhead), every load/seek/play, each line of speech, and the audio
+player's status changes (loaded / playing / finished / error). Reproduce the
+glitch, then read the lines around it — the take that should have produced
+sound and what the native side reported.
+
+Known device behaviours handled in the component (not visible to mocks):
+iOS reports an abandoned load as an error (retried, and ignored when nothing
+should be playing); iOS drops speech started right after a stop (150ms gap).
+
 ## What only a device can confirm
 
 Automated tests use mocks for expo-audio and expo-speech, so before a release

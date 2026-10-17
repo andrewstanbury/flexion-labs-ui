@@ -393,6 +393,9 @@ describe('<PanelCarousel />', () => {
       // figure rather than an exact sum, to avoid coupling this test to the
       // internal narration-estimate constants.
       advanceAndLoad(3000, queryByTestId, 'b.jpg');
+      // Speech right after stopping speech waits out iOS's stop (see
+      // SPEECH_RESTART_GAP_MS) rather than being dropped.
+      act(() => jest.advanceTimersByTime(200));
       expect(speak).toHaveBeenCalledWith('Second', expect.any(Object));
     });
 
@@ -604,6 +607,10 @@ describe('<PanelCarousel />', () => {
       layout(getByTestId('carousel'));
       expect(speak).not.toHaveBeenCalled();
       const listener = player().addListener.mock.calls[player().addListener.mock.calls.length - 1][1];
+      // One error is retried (a fast scrub's abandoned load reports one too);
+      // a second gives up on the recording.
+      act(() => listener({ error: 'HTTP 403', isLoaded: false }));
+      expect(speak).not.toHaveBeenCalled();
       act(() => listener({ error: 'HTTP 403', isLoaded: false }));
       expect(speak).toHaveBeenCalledWith('Stand tall.', expect.any(Object));
       // The 4s recording would still be holding panel a; the 2-word TTS
@@ -711,6 +718,7 @@ describe('<PanelCarousel />', () => {
       fireEvent.press(getByTestId('carousel-tap-area')); // reveal the chrome
       fireEvent.press(getByTestId('carousel-speed')); // -> 0.75x
       await act(async () => {});
+      act(() => jest.advanceTimersByTime(200)); // the speech restart gap
       const slowed = speak.mock.calls[speak.mock.calls.length - 1][1].rate;
       expect(slowed).toBeCloseTo(baseRate * 0.75, 5);
     });
