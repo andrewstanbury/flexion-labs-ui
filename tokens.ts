@@ -62,6 +62,30 @@ export const colors = {
     800: '#7C3D55',
     900: '#4E2536',
   },
+  // Status ramps (v0.31.0) for notices, badges, meters and state lines:
+  // 100 is the tinted face, 700 the text/icon on it (light mode); dark mode
+  // pairs 300 text with a 900 face.
+  info: {
+    100: '#E3F2F7',
+    300: '#8CCBE0',
+    600: '#1F7A99',
+    700: '#14627C',
+    900: '#12303A',
+  },
+  success: {
+    100: '#E3F3E8',
+    300: '#8FD0A6',
+    600: '#25804A',
+    700: '#17663A',
+    900: '#16301F',
+  },
+  warning: {
+    100: '#FDF0DA',
+    300: '#E9BC6A',
+    600: '#A86E06',
+    700: '#8A5A00',
+    900: '#3A2A10',
+  },
   // Red ramp for destructive actions, error states, validation messages.
   danger: {
     50:  '#FEF2F2',
@@ -116,6 +140,12 @@ export const semantic = {
     energyStrong:     colors.coral[600],
     danger:           colors.danger[600],
     dangerMuted:      colors.danger[100],
+    info:             colors.info[700],
+    infoMuted:        colors.info[100],
+    success:          colors.success[700],
+    successMuted:     colors.success[100],
+    warning:          colors.warning[700],
+    warningMuted:     colors.warning[100],
   },
   // Dark mode: sage-green palette with green as the primary/accent.
   dark: {
@@ -142,6 +172,12 @@ export const semantic = {
     energyStrong:     colors.coral[600],
     danger:           colors.danger[400],
     dangerMuted:      colors.danger[900],
+    info:             colors.info[300],
+    infoMuted:        colors.info[900],
+    success:          colors.success[300],
+    successMuted:     colors.success[900],
+    warning:          colors.warning[300],
+    warningMuted:     colors.warning[900],
   },
 } as const;
 
@@ -238,6 +274,7 @@ export const typography = {
   body:    { fontSize: 15, lineHeight: 22, fontWeight: '400' as const },
   bodyStrong: { fontSize: 15, lineHeight: 22, fontWeight: '600' as const },
   caption: { fontSize: 12.5, lineHeight: 17, fontWeight: '400' as const },
+  captionStrong: { fontSize: 12.5, lineHeight: 17, fontWeight: '700' as const },
   label:   { fontSize: 11, lineHeight: 15, fontWeight: '800' as const, letterSpacing: 0.7 },
   button:  { fontSize: 15, lineHeight: 20, fontWeight: '800' as const },
 } as const;

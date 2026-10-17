@@ -3,7 +3,33 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
-## v0.30.0
+## v0.31.0
+
+**The rest of the retaskable kit.** Compared component by component against
+retaskable.com's UI kit (/ui-kit) and brought over everything that fits a
+physio app, restyled to the FlexionLabs palette. Left out: its code-diff,
+CI-check and agent-flow pieces, which only make sense for a developer tool.
+
+- Tokens: `info`, `success`, `warning` colour ramps and semantic roles
+  (`info`/`infoMuted`, `success`/`successMuted`, `warning`/`warningMuted`) in
+  both schemes; `captionStrong` type style.
+- Text: colours `success`/`warning`/`info`; `mono`, `italic`, `tabular`
+  (fixed-width digits) and `align` props; `Text.CaptionStrong`.
+- Controls: `Chip` (one toggleable pill), `IconButton` (44pt, optional filled
+  accent disc), `Choice` (selectable card with a hint), `RadioOption`,
+  `Checklist`.
+- Status: `Banner` (top strip or inline tinted notice with an action),
+  `Meter` (simple, segmented, or stacked with a legend), `Tile` (stat),
+  `StateLine`, `StepTrail`, `StageStrip`.
+- Structure: `Panel` (titled card, `highlight` tone), `Properties`,
+  `Disclosure`, `MoreMenu` (overflow sheet), `ChatBubble`, `BottomBar`, `Grid`.
+- Fields: `TextField`, `NumberField` (keeps the typed text, reports a number).
+- `Tag` gains `info`/`success`/`warning` tones, an `icon` and a `quiet`
+  sentence-case form; `Badge` is that quiet form. `ListGroup.Row` gains
+  `selected`, `lead` and `foot`. `ToggleRow` gains `locked`.
+- `UIKit`: every component on one page with physio examples — mount it on a
+  dev-only route to review the library.
+
 
 **The flexionlabs.com look, plus four components from the cleaner reference apps.**
 
