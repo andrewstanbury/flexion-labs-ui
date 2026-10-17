@@ -1,7 +1,7 @@
 import { View } from 'react-native';
-import { layout, radius, space } from '../tokens';
-import { useTheme } from '../UIProvider';
-import { Icon, type IconProps } from '../primitives/Icon';
+import { layout, space } from '../tokens';
+import { type IconProps } from '../primitives/Icon';
+import { ArtOrb } from './Website';
 import { Text } from '../primitives/Text';
 
 // EmptyState — placeholder used when a list/page has no content. Centered
@@ -15,7 +15,6 @@ export type EmptyStateProps = {
 };
 
 export function EmptyState({ iconName, heading, body, action }: EmptyStateProps) {
-  const t = useTheme();
   return (
     <View
       style={{
@@ -28,19 +27,8 @@ export function EmptyState({ iconName, heading, body, action }: EmptyStateProps)
       }}
     >
       {iconName ? (
-        <View
-          style={{
-            width: 96,
-            height: 96,
-            borderRadius: radius.pill,
-            backgroundColor: t.surfaceMuted,
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginBottom: space[4],
-          }}
-        >
-          <Icon name={iconName} size="xl" color="accent" />
-        </View>
+        // The website's round character art with the icon on a white disc.
+        <ArtOrb brief={`Illustration: ${heading}`} icon={iconName} size={128} style={{ marginBottom: space[4] }} />
       ) : null}
       <Text variant="h2" color="primary" style={{ textAlign: 'center' }}>
         {heading}

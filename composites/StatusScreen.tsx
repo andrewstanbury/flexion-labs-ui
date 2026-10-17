@@ -1,8 +1,9 @@
 import { ScrollView, RefreshControl, ActivityIndicator, View } from 'react-native';
-import { layout, radius, space } from '../tokens';
+import { layout, space } from '../tokens';
 import { useTheme } from '../UIProvider';
 import { Screen } from '../primitives/Screen';
-import { Icon, type IconProps } from '../primitives/Icon';
+import { type IconProps } from '../primitives/Icon';
+import { ArtOrb } from './Website';
 import { Text } from '../primitives/Text';
 
 // StatusScreen — locked / informational full-screen state. Two roles:
@@ -57,19 +58,14 @@ export function StatusScreen({
         }
       >
         <View style={{ alignItems: 'center' }}>
-          <View
-            style={{
-              width: 96,
-              height: 96,
-              borderRadius: radius.pill,
-              backgroundColor: t.surfaceMuted,
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginBottom: space[6],
-            }}
-          >
-            <Icon name={iconName ?? defaultIcon(mode)} size={48} color="accent" />
-          </View>
+          {/* The website's round character art with the icon on a white disc. */}
+          <ArtOrb
+            brief={`Illustration: ${heading}`}
+            icon={iconName ?? defaultIcon(mode)}
+            tone={mode === 'suspended' ? 'sand' : 'sage'}
+            size={136}
+            style={{ marginBottom: space[6] }}
+          />
           <Text variant="h1" color="primary" style={{ textAlign: 'center', marginBottom: space[3] }}>
             {heading}
           </Text>
