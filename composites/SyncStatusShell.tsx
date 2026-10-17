@@ -1,12 +1,14 @@
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SyncStatusBar } from './SyncStatusBar';
+import { StatusStrip } from './StatusStrip';
+import type { SyncWords } from '../lib/syncStatus';
 import { TopInsetConsumedContext } from '../primitives/Screen';
 import type { SyncState } from './SyncStatusDot';
 
-// Wraps the app's screen stack with a dedicated top bar that hosts the sync dot,
-// so the (transparent) dot never overlaps a screen's own header actions.
+// Wraps the app's screen stack with the status strip (StatusStrip: the brand,
+// the sync button and, offline, a line under it), so the strip never overlaps a
+// screen's own header actions.
 //
 // It pads the safe-area notch + the (short) bar ONCE, then tells descendants —
 // via TopInsetConsumedContext — that the top inset is already handled, so each
@@ -22,19 +24,21 @@ export function SyncStatusShell({
   pendingCount = 0,
   show = true,
   backgroundColor,
-  backend,
+  brand,
+  describe,
+  offlineMessage,
   children,
 }: {
   state: SyncState;
   pendingCount?: number;
   show?: boolean;
   backgroundColor?: string;
-  /**
-   * Optional backend badge for the status row. Pass it only when the app has
-   * decided the detail should be visible — the shell does not read dev-mode
-   * state itself, so this stays a presentation component.
-   */
-  backend?: { label: string; host: string };
+  /** The strip's wordmark (default FlexionLabs). */
+  brand?: string;
+  /** The app's own (e.g. translated) words for each sync state. */
+  describe?: (state: SyncState, pendingCount: number) => SyncWords;
+  /** The line under the strip while offline. */
+  offlineMessage?: string;
   children: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
@@ -43,7 +47,13 @@ export function SyncStatusShell({
 
   return (
     <View style={{ flex: 1, paddingTop: insets.top, backgroundColor }}>
-      <SyncStatusBar state={state} pendingCount={pendingCount} backend={backend} />
+      <StatusStrip
+        state={state}
+        pendingCount={pendingCount}
+        brand={brand}
+        describe={describe}
+        offlineMessage={offlineMessage}
+      />
       <TopInsetConsumedContext.Provider value={true}>
         <View style={{ flex: 1 }}>{children}</View>
       </TopInsetConsumedContext.Provider>

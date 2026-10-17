@@ -3,6 +3,28 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.39.0
+
+**Status strip (after Retaskable) and the intro animation.**
+
+- New `StatusStrip`, now what `SyncStatusShell` draws: the FlexionLabs mark
+  and wordmark at the left; at the right a 44pt sync button that is always
+  there — its icon says the state (cloud with a tick, turning arrows while
+  syncing, crossed-out cloud offline), coloured by tone, with a badge counting
+  waiting changes. Pressing it drops the words (never starts a sync). While
+  offline a line sits under the strip, in the flow. Reduced motion stops the
+  arrows turning.
+- `SyncStatusShell` loses `backend` (the AWS/Railway badge is gone from the
+  bar) and gains `brand`, `describe` (the app's own, e.g. translated, words)
+  and `offlineMessage`. `SyncStatusBar` is unchanged but no longer used by the
+  shell.
+- New `lib/syncStatus.ts`: `syncStatus`, `syncWords`, `syncSpins`,
+  `pendingBadge` — the strip's words, tone and icon as pure functions.
+- New `IntroAnimation`: starts on the native splash's exact frame (the F),
+  the website logo's dot pops in, the mark settles up as the wordmark and
+  tagline rise, then it fades over the app (~2 s; tap skips; reduced motion
+  just fades). Colours come from each app's splash config.
+
 ## v0.38.0
 
 **Website graphics across the apps.**

@@ -34,7 +34,7 @@ Consequences:
 - App code must import from the package root (`@flexion-labs/ui`), never from a
   deep path inside the package.
 - Release history is in [`CHANGELOG.md`](./CHANGELOG.md) (keep it updated on every
-  version bump) plus the git tags. Current tags: v0.1.0 … v0.38.0.
+  version bump) plus the git tags. Current tags: v0.1.0 … v0.39.0.
 
 ### Current public export surface (the contract)
 
@@ -65,7 +65,7 @@ breaking release across both apps.
 - **Composites** (`composites/`): `FormField`, `SectionHeader`, `ListItem`,
   `SegmentedControl`, `ToggleRow`, `EmptyState`, `StatusScreen`,
   `AuthScreenShell`, `StorageBar`, `OfflineBanner`, `SyncStatusDot`,
-  `SyncStatusBar`, `SyncStatusShell`, `Tag`, `FilterChips`, `ListGroup`
+  `SyncStatusBar`, `SyncStatusShell`, `StatusStrip` (v0.39.0, what the shell draws), `IntroAnimation` (v0.39.0), `Tag`, `FilterChips`, `ListGroup`
   (+ `ListGroup.Row`), `IconTile` (v0.30.0), and from v0.31.0 the retaskable
   set — `Chip`, `IconButton`, `Choice`, `RadioOption`, `Checklist`, `Banner`,
   `Meter`, `Tile`, `StateLine`, `StepTrail`, `StageStrip`, `Panel`,
