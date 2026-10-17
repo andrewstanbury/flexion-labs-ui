@@ -54,6 +54,7 @@ jest.mock('expo-audio', () => {
     replace: jest.fn(),
     remove: jest.fn(),
     setPlaybackRate: jest.fn(),
+    seekTo: jest.fn().mockResolvedValue(undefined),
     addListener: jest.fn(() => ({ remove: jest.fn() })),
   };
   return {

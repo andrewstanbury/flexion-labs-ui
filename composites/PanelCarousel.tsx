@@ -327,6 +327,7 @@ export function PanelCarousel({
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const barWidthRef = useRef(0);
   const dragStartXRef = useRef(0);
+  const wasPlayingBeforeScrubRef = useRef(false);
   // Set right before a replay-triggered play starts, consumed by the
   // auto-hide effect below to use REPLAY_AUTO_HIDE_MS instead of the normal
   // CONTROLS_AUTO_HIDE_MS — after tapping replay the viewer just interacted
@@ -338,6 +339,7 @@ export function PanelCarousel({
   // the current index each tick so a given panel is only narrated once per
   // visit, not on every render while sitting on it.
   const narratedIndexRef = useRef(-1);
+  const sequenceResetPendingRef = useRef(false);
   // Best available voice identifier, looked up once per mount (only when
   // narrating). expo-speech's default voice is the flattest one available on
   // most devices; an "Enhanced"-quality English voice, where the OS has one
@@ -419,9 +421,28 @@ export function PanelCarousel({
     fastHideRef.current = false;
     narratedIndexRef.current = -1;
     stopNarration();
+    currentAudioUrlRef.current = null;
+    // The clock reset above lands on the NEXT render; until then elapsedMs
+    // still holds the previous exercise's position, and narrating now would
+    // start the new first clip partway through.
+    sequenceResetPendingRef.current = true;
+    setFailedAudioUrls([]);
     setSlotUris([uris[0] ?? null, null]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uris.join('|')]);
+
+  // Recordings that arrive after playback started (the exercise's narration
+  // audio loads after its panels) take over the current panel instead of
+  // letting on-device speech finish it. Skips the first render: there is
+  // nothing to take over from yet.
+  const audioSignature = (steps ?? []).map((st) => st?.audioUrl ?? '').join('|');
+  const audioSignatureRef = useRef(audioSignature);
+  useEffect(() => {
+    if (audioSignatureRef.current === audioSignature) return;
+    audioSignatureRef.current = audioSignature;
+    narratedIndexRef.current = -1;
+    stopNarration();
+  }, [audioSignature]);
 
   // Playback clock — ticks while playing; the panel to show is derived from
   // elapsed time (below). Self-schedules each tick's own setTimeout inside
@@ -508,11 +529,25 @@ export function PanelCarousel({
   // off mid-panel — it just means the estimate undershot for that one step.
   useEffect(() => {
     if (!narrate || !resolvedSteps || !isPlaying || !active || muted || screenReaderEnabled) return;
+    if (sequenceResetPendingRef.current) {
+      if (elapsedMs !== 0) return; // wait for the new exercise's clock to reset
+      sequenceResetPendingRef.current = false;
+    }
     const idx = indexForElapsed(elapsedMs, boundaries);
     if (narratedIndexRef.current === idx) return;
+    // -1 means narration was reset: a start, resume, seek, restart or a new
+    // source. A natural advance arrives with the previous panel's index.
+    const fromReset = narratedIndexRef.current === -1;
     narratedIndexRef.current = idx;
     stopNarration();
     const step = resolvedSteps[idx];
+    // How far into this panel playback is when narration (re)starts after a
+    // reset — after a resume or a scrub the narrator picks up partway, the way
+    // a video's soundtrack does, rather than starting the line over or staying
+    // silent. A natural advance always starts the line at 0: the clock ticks
+    // in steps and can land a little past the boundary, which must not clip
+    // or skip the line.
+    const offsetMs = fromReset ? Math.max(0, elapsedMs - (boundaries[idx] ?? 0)) : 0;
     const audio = step.audioUrl ? loadExpoAudio() : null;
     if (step.audioUrl && audio) {
       // Recorded narration. playsInSilentMode mirrors what
@@ -525,6 +560,9 @@ export function PanelCarousel({
         });
       }
       const url = step.audioUrl;
+      // Already past the end of this panel's recording: nothing left to say
+      // until the next panel, same as scrubbing a video past a line.
+      if (step.audioDurationMs !== undefined && offsetMs >= step.audioDurationMs) return;
       try {
         let player = audioPlayerRef.current;
         if (!player) {
@@ -540,6 +578,13 @@ export function PanelCarousel({
           player.replace({ uri: url });
         }
         currentAudioUrlRef.current = url;
+        // Always position the clip explicitly. A clip that already played to
+        // its end stays parked there, and re-loading the same source does not
+        // rewind it — which is why restarting used to leave the narrator
+        // silent. 0 for a fresh panel; the panel offset after resume/scrub.
+        Promise.resolve(player.seekTo(offsetMs / 1000)).catch(() => {
+          // Seek unsupported before load on some platforms; play from 0.
+        });
         // Same factor the clock uses, so the recording stays locked to the
         // panels at 0.75x/1.5x. NOT multiplied by NARRATION_RATE: that slows
         // the TTS engine's clipped default pace, while the recording is already
@@ -552,6 +597,10 @@ export function PanelCarousel({
       }
       return;
     }
+    // On-device speech cannot start mid-sentence. Re-speak the line when
+    // resuming early in it; past the halfway mark, stay quiet until the next
+    // panel rather than run the line over into the next panel's time.
+    if (offsetMs > 0 && offsetMs >= narrationMs(step) / 2) return;
     Speech.speak(step.text, {
       // Same factor the clock uses, so the narrator finishes a panel's text in
       // the same proportion of that panel's (now shorter/longer) dwell time.
@@ -571,7 +620,13 @@ export function PanelCarousel({
   // rather than waiting for the utterance to finish on its own.
   useEffect(() => {
     if (!narrate) return;
-    if (!isPlaying || !active || muted || screenReaderEnabled) stopNarration();
+    if (!isPlaying || !active || muted || screenReaderEnabled) {
+      stopNarration();
+      // Resuming should pick the narrator back up at the current point of
+      // this panel (see offsetMs above), not leave it silent for the rest of
+      // the panel because it was "already narrated".
+      narratedIndexRef.current = -1;
+    }
   },[narrate, isPlaying, active, muted, screenReaderEnabled]);
 
   const handleSlotLoad = (slot: Slot) => {
@@ -605,7 +660,10 @@ export function PanelCarousel({
 
   if (uris.length === 0) return null;
 
-  const atEnd = shownIndexRef.current >= uris.length - 1 && elapsedMs >= totalMs;
+  // Finished means the clock ran out, as with a video — not "and the last
+  // image decoded". Requiring the image left replay doing nothing (resuming at
+  // the end) whenever the last panel loaded slowly or failed to load.
+  const atEnd = elapsedMs >= totalMs;
   const iconName = isPlaying ? 'pause' : atEnd ? 'refresh' : 'play';
   const progress = totalMs > 0 ? Math.min(elapsedMs / totalMs, 1) : 0;
 
@@ -675,10 +733,13 @@ export function PanelCarousel({
   // not a crossfade — shared by both the drag-scrub below and the
   // accessibility increment/decrement action, which resolve targetIndex/
   // targetMs differently but land the same way).
-  const applyTargetIndex = (targetIndex: number, targetMs: number) => {
-    setIsPlaying(false);
+  const applyTargetIndex = (targetIndex: number, targetMs: number, pause: boolean) => {
+    if (pause) setIsPlaying(false);
     setControlsVisible(true);
     stopNarration();
+    // Whatever was narrated before the seek no longer applies; the narration
+    // effect re-narrates the landing panel from the landing offset.
+    narratedIndexRef.current = -1;
     if (targetIndex !== shownIndexRef.current) {
       pendingRef.current = null;
       const slot = activeSlotRef.current;
@@ -709,7 +770,9 @@ export function PanelCarousel({
     if (barWidth <= 0) return;
     const fraction = Math.max(0, Math.min(1, x / barWidth));
     const targetMs = fraction * totalMs;
-    applyTargetIndex(indexForElapsed(targetMs, boundaries), targetMs);
+    // Paused while the finger is down (like dragging a video's playhead);
+    // the release handler resumes if it was playing before the drag.
+    applyTargetIndex(indexForElapsed(targetMs, boundaries), targetMs, true);
   };
 
   // The VoiceOver/TalkBack "adjustable" increment/decrement action — jumps a
@@ -719,7 +782,8 @@ export function PanelCarousel({
   // screenReaderEnabled above — running both would talk over each other).
   const seekToIndex = (targetIndex: number) => {
     const clamped = Math.max(0, Math.min(targetIndex, uris.length - 1));
-    applyTargetIndex(clamped, boundaries[clamped]);
+    // Skips keep playing if they were — a video's next/previous doesn't pause.
+    applyTargetIndex(clamped, boundaries[clamped], false);
     if (screenReaderEnabled) {
       const label = resolvedSteps?.[clamped]?.text ?? `Panel ${clamped + 1} of ${uris.length}`;
       AccessibilityInfo.announceForAccessibility(label);
@@ -734,12 +798,22 @@ export function PanelCarousel({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
     onPanResponderGrant: (e: GestureResponderEvent) => {
+      wasPlayingBeforeScrubRef.current = isPlaying;
       dragStartXRef.current = e.nativeEvent.locationX;
       seekToLocalX(e.nativeEvent.locationX);
     },
     onPanResponderMove: (_e: GestureResponderEvent, gesture: PanResponderGestureState) =>
       seekToLocalX(dragStartXRef.current + gesture.dx),
+    onPanResponderRelease: () => endScrub(),
+    onPanResponderTerminate: () => endScrub(),
   });
+
+  // Resumes after a scrub if playback was running when the drag began — the
+  // narrator then picks up from the landing point (see offsetMs).
+  function endScrub() {
+    if (wasPlayingBeforeScrubRef.current) setIsPlaying(true);
+    wasPlayingBeforeScrubRef.current = false;
+  }
 
   const handleTimelineAccessibilityAction = (event: { nativeEvent: { actionName: string } }) => {
     const current = indexForElapsed(elapsedMs, boundaries);
