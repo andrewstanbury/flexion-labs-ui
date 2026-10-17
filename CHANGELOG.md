@@ -21,6 +21,10 @@ via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 - Players use `keepAudioSessionActive` and 100ms status updates.
 - Next on the last panel goes to the end (stopped, replay offered) instead of
   restarting that panel; previous from the end goes to the last panel.
+- `HeroBanner`: the image/art now fills the whole banner (it drew at its
+  intrinsic size and left the header partly uncovered); the wash is the
+  website's hero shade; new `highlight` prop puts trailing words in the
+  site's pink (`.hl`).
 - Tests: `clipBank` and `narrationFiles` suites; component tests for buffering,
   the held clock, late-loading clips after next/back, and the fallbacks; hold
   invariants added to the randomized sequences. Both files are in the
