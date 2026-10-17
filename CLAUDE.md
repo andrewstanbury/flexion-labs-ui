@@ -34,7 +34,7 @@ Consequences:
 - App code must import from the package root (`@flexion-labs/ui`), never from a
   deep path inside the package.
 - Release history is in [`CHANGELOG.md`](./CHANGELOG.md) (keep it updated on every
-  version bump) plus the git tags. Current tags: v0.1.0 … v0.30.0.
+  version bump) plus the git tags. Current tags: v0.1.0 … v0.31.0.
 
 ### Current public export surface (the contract)
 
@@ -66,7 +66,12 @@ breaking release across both apps.
   `SegmentedControl`, `ToggleRow`, `EmptyState`, `StatusScreen`,
   `AuthScreenShell`, `StorageBar`, `OfflineBanner`, `SyncStatusDot`,
   `SyncStatusBar`, `SyncStatusShell`, `Tag`, `FilterChips`, `ListGroup`
-  (+ `ListGroup.Row`), `IconTile` (v0.30.0), `PanelCarousel` (+ `PanelStep` type —
+  (+ `ListGroup.Row`), `IconTile` (v0.30.0), and from v0.31.0 the retaskable
+  set — `Chip`, `IconButton`, `Choice`, `RadioOption`, `Checklist`, `Banner`,
+  `Meter`, `Tile`, `StateLine`, `StepTrail`, `StageStrip`, `Panel`,
+  `Properties`, `Disclosure`, `MoreMenu`, `ChatBubble`, `BottomBar`, `Grid`,
+  `TextField`, `NumberField`, `Badge` — plus `UIKit` (every component on one
+  page; mount on a dev-only route), `PanelCarousel` (+ `PanelStep` type —
   video-like player for an ordered set of static panel images; optional
   `narrate`/`steps` props add on-device TTS narration via `expo-speech`, a
   peer dependency as of v0.21.0; steps with `audioUrl` play pre-generated

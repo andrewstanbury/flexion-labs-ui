@@ -52,11 +52,17 @@ export type ListGroupRowProps = {
   subtitle?: string;
   leading?: ReactNode;
   trailing?: ReactNode;
+  /** A status line above the title (e.g. a StateLine). */
+  lead?: ReactNode;
+  /** Chips or meta below the subtitle (e.g. a Badge). */
+  foot?: ReactNode;
+  selected?: boolean;
   onPress?: () => void;
   accessibilityLabel?: string;
 };
 
-function Row({ title, subtitle, leading, trailing, onPress, accessibilityLabel }: ListGroupRowProps) {
+function Row({ title, subtitle, leading, trailing, lead, foot, selected, onPress, accessibilityLabel }: ListGroupRowProps) {
+  const t = useTheme();
   const body = (
     <View
       style={{
@@ -66,16 +72,19 @@ function Row({ title, subtitle, leading, trailing, onPress, accessibilityLabel }
         paddingHorizontal: layout.card,
         paddingVertical: space[3],
         minHeight: 56,
+        backgroundColor: selected ? t.surfaceMuted : undefined,
       }}
     >
       {leading}
       <View style={{ flex: 1, gap: 2 }}>
+        {lead}
         <Text variant="bodyStrong">{title}</Text>
         {subtitle ? (
           <Text variant="caption" color="muted">
             {subtitle}
           </Text>
         ) : null}
+        {foot ? <View style={{ marginTop: space[1], flexDirection: 'row', flexWrap: 'wrap', gap: space[1] }}>{foot}</View> : null}
       </View>
       {trailing}
       {onPress && !trailing ? <Icon name="chevron-forward" size="sm" color="muted" /> : null}
@@ -86,6 +95,7 @@ function Row({ title, subtitle, leading, trailing, onPress, accessibilityLabel }
     <Pressable.Touch
       onPress={onPress}
       accessibilityRole="button"
+      accessibilityState={selected === undefined ? undefined : { selected }}
       accessibilityLabel={accessibilityLabel ?? title}
     >
       {body}

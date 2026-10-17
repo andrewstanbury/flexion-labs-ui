@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { colors, layout, space } from '../tokens';
 import { useScheme, useTheme } from '../UIProvider';
 import { Text } from '../primitives/Text';
+import { Tag } from './Tag';
 
 // ToggleRow — a labelled on/off setting: optional left icon, a title +
 // subtitle, and a Switch. The track/thumb colors resolve from tokens so call
@@ -13,7 +14,10 @@ export type ToggleRowProps = {
   title: string;
   subtitle?: string;
   value: boolean;
-  onValueChange: (value: boolean) => void;
+  /** Omit (with `locked`) for a setting the user can see but not change. */
+  onValueChange?: (value: boolean) => void;
+  /** Shows the state as a small On/Off badge instead of a switch (v0.31.0). */
+  locked?: boolean;
   leftIcon?: ReactNode;
   style?: StyleProp<ViewStyle>;
 };
@@ -23,6 +27,7 @@ export function ToggleRow({
   subtitle,
   value,
   onValueChange,
+  locked = false,
   leftIcon,
   style,
 }: ToggleRowProps) {
@@ -45,6 +50,9 @@ export function ToggleRow({
           </Text>
         ) : null}
       </View>
+      {locked ? (
+        <Tag label={value ? 'On' : 'Off'} tone="neutral" />
+      ) : (
       <Switch
         value={value}
         onValueChange={onValueChange}
@@ -52,6 +60,7 @@ export function ToggleRow({
         thumbColor={colors.white}
         accessibilityLabel={title}
       />
+      )}
     </View>
   );
 }
