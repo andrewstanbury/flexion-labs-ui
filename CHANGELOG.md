@@ -3,7 +3,33 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
-## v0.33.0
+## v0.34.0
+
+**PanelCarousel narration behaves like a video's soundtrack.** Fixes:
+
+- **Restart / replay played no narration.** A clip that had played to its end
+  stayed parked there; re-loading the same source did not rewind it. Every
+  clip start now seeks explicitly (0 for a fresh panel).
+- **Resume was silent for the rest of the panel**, and **scrubbing never
+  picked the narrator back up**. After a pause, seek, restart or new source,
+  narration restarts at the current point *within* the panel: a recording
+  seeks to that offset; on-device speech re-reads the line if early in it and
+  otherwise waits for the next panel. Past the end of a panel's recording,
+  nothing plays until the next panel.
+- **Scrubbing** pauses while the finger is down and resumes on release if it
+  was playing; **next/previous and the accessibility increment** no longer
+  pause playback.
+- **Loading a new exercise** waits for the clock reset before narrating (it
+  could start the new first clip partway through) and forgets recordings that
+  failed on the previous exercise. Recordings that arrive after playback
+  started take over the current panel from on-device speech.
+- **"Finished"** is the clock running out, not "and the last image decoded" —
+  replay did nothing if the last panel loaded slowly.
+
+New `PanelCarousel.playback.test.tsx` (18 tests) pins load, restart, pause/
+resume, scrubbing (driven through the real PanResponder with a synthetic
+touch history), skip and speed; 17 of them fail against v0.33.0.
+
 
 **Pastel light mode.** In light mode every palette's filled controls (primary
 buttons, selected chips and segments, choices, the user's chat bubble) are now
