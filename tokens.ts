@@ -235,7 +235,9 @@ export const radius = {
   field: 12,
   lg:    14,
   xl:    18,
-  card:  13,
+  // 20 since v0.36.0: the flexionlabs.com look (its cards are ~22px). The
+  // earlier 13 was the tighter look; the website set the direction since.
+  card:  20,
   '2xl': 20,
   '3xl': 24,
   pill:  9999,
@@ -302,12 +304,14 @@ export const shadow = {
   // reads as "crisp" rather than "floating": the edge does the work of defining
   // the card and the shadow only lifts it slightly, instead of a larger diffuse
   // shadow carrying the definition on its own.
+  // v0.36.0: the website's soft lift (0 6px 18px at ~6%), with the hairline
+  // border still defining the edge. Kept well under the modal shadow.
   card: {
     shadowColor: colors.black,
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 1,
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
   },
   modal: {
     shadowColor: colors.black,

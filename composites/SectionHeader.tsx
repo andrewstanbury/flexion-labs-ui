@@ -22,7 +22,8 @@ export function SectionHeader({ title, trailing }: SectionHeaderProps) {
         marginBottom: layout.gapSm,
       }}
     >
-      <Text variant="label" color="muted" style={{ textTransform: 'uppercase', letterSpacing: 0.6 }}>
+      {/* The website's eyebrow: accent-coloured, widely tracked uppercase. */}
+      <Text variant="label" color="accent" style={{ textTransform: 'uppercase', letterSpacing: 1.2 }}>
         {title}
       </Text>
       {trailing}

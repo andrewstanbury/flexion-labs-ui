@@ -62,9 +62,10 @@ describe('layout density (v0.18.0)', () => {
 
 describe('card elevation (v0.18.0)', () => {
   it('is a whisper, because the 1px border carries the definition', () => {
-    expect(shadow.card.shadowOpacity).toBeCloseTo(0.05);
-    expect(shadow.card.shadowRadius).toBe(6);
-    expect(shadow.card.shadowOffset).toEqual({ width: 0, height: 1 });
+    // v0.36.0: the website's soft lift.
+    expect(shadow.card.shadowOpacity).toBeCloseTo(0.06);
+    expect(shadow.card.shadowRadius).toBe(18);
+    expect(shadow.card.shadowOffset).toEqual({ width: 0, height: 6 });
   });
 
   it('stays lighter than the modal shadow', () => {
