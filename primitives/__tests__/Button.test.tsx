@@ -1,7 +1,7 @@
 import { StyleSheet } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import { Button } from '../Button';
-import { theme } from '../../tokens';
+import { resolvePalette } from '../../lib/palettes';
 
 function labelStyle(node: { props: { style: unknown } }) {
   return StyleSheet.flatten(node.props.style as object) as { textTransform?: string };
@@ -30,6 +30,6 @@ describe('<Button />', () => {
     // own fg colour — the theme's on-accent colour for a primary button.
     render(<Button.Primary leftIcon={<Stub color="#123456" />}>Go</Button.Primary>);
     expect(seen).toHaveLength(1);
-    expect(seen[0]).toBe(theme('light').accentOn);
+    expect(seen[0]).toBe(resolvePalette('light').accentOn);
   });
 });

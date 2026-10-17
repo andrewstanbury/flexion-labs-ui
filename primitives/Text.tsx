@@ -27,7 +27,9 @@ type Variant =
 
 type ColorRole =
   | 'primary' | 'secondary' | 'muted' | 'accent' | 'danger' | 'inverse'
-  | 'success' | 'warning' | 'info';
+  | 'success' | 'warning' | 'info'
+  /** Label on a filled accent control (button face, selected chip). */
+  | 'onAccent';
 
 export type TextVariantProps = TextProps & {
   variant?: Variant;
@@ -67,6 +69,7 @@ function useColor(role: ColorRole): string {
     case 'success':   return t.success;
     case 'warning':   return t.warning;
     case 'info':      return t.info;
+    case 'onAccent':  return t.accentOn;
   }
 }
 

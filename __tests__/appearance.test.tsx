@@ -1,7 +1,7 @@
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 import {
-  AppearanceSection, PALETTE_IDS, Text, UIProvider, colors, paletteRamps, paletteVars, resolvePalette, semantic,
+  AppearanceSection, PALETTE_IDS, contrastRatio, pastelFill, Text, UIProvider, colors, paletteRamps, paletteVars, resolvePalette, semantic,
   useAppearanceStore, useTheme, DEFAULT_APPEARANCE,
 } from '../index';
 
@@ -10,9 +10,19 @@ afterEach(async () => {
 });
 
 describe('palettes', () => {
-  it('sage, the default, is exactly the existing semantic palette', () => {
-    expect(resolvePalette('light')).toEqual(semantic.light);
+  it('sage keeps the semantic palette, with pastel filled controls in light mode', () => {
     expect(resolvePalette('dark', 'sage')).toEqual(semantic.dark);
+    const light = resolvePalette('light');
+    expect(light.surface).toBe(semantic.light.surface);
+    expect(light.textPrimary).toBe(semantic.light.textPrimary);
+    expect(light.accentSurface).toBe(pastelFill(colors.sage[500]).face);
+  });
+
+  it('every pastel button label reads at 4.5:1 or better', () => {
+    for (const id of PALETTE_IDS) {
+      const p = resolvePalette('light', id);
+      expect(contrastRatio(p.accentOn, p.accentSurface)).toBeGreaterThanOrEqual(4.5);
+    }
   });
 
   it('every palette fills every role with a colour in both schemes', () => {
@@ -38,7 +48,8 @@ describe('palettes', () => {
   it('sage ramps are the existing tailwind ramps, and vars cover sand/sage/brand', () => {
     expect(paletteRamps('sage').sage[700]).toBe(colors.sage[700]);
     const vars = paletteVars('harbor');
-    expect(Object.keys(vars)).toHaveLength(30);
+    expect(Object.keys(vars)).toHaveLength(32);
+    expect(vars['--accent-fill']).toBe(paletteVars('harbor', 'light')['--accent-fill']);
     expect(vars['--sand-50']).toMatch(/^\d+ \d+ \d+$/);
   });
 
@@ -56,7 +67,7 @@ describe('appearance in components', () => {
 
   it('useTheme follows the saved palette', async () => {
     const { getByTestId } = render(<UIProvider scheme="light"><Probe /></UIProvider>);
-    expect(getByTestId('probe').props.children).toBe(semantic.light.accentSurface);
+    expect(getByTestId('probe').props.children).toBe(resolvePalette('light').accentSurface);
     await act(async () => useAppearanceStore.getState().set({ palette: 'harbor' }));
     await waitFor(() =>
       expect(getByTestId('probe').props.children).toBe(resolvePalette('light', 'harbor').accentSurface),

@@ -3,7 +3,23 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
-## v0.32.0
+## v0.33.0
+
+**Pastel light mode.** In light mode every palette's filled controls (primary
+buttons, selected chips and segments, choices, the user's chat bubble) are now
+the palette colour softened toward white, with a deep shade of the same hue as
+the label — darkened until it reads at 4.5:1 or better (a test pins this for
+every palette). Sage's pastel is built from sage-500, which softens to a
+clearer green than the muted sage-700. Dark mode is unchanged. `theme()` still
+returns the base palette; `useTheme()`/`resolvePalette()` apply the pastel.
+
+- New `onAccent` colour for `Text` and `Icon`: the label colour for a filled
+  accent control. Use it instead of `inverse` or white on accent fills.
+- `paletteVars(palette, scheme, contrast)` adds `--accent-fill` / `--accent-on`
+  (scheme-aware), so apps can style hand-built selected states with a
+  `bg-accent-fill` class that matches the library in both modes.
+- `pastelFill()` and `contrastRatio()` are exported.
+
 
 **Appearance options, after retaskable.com's settings.** Users can now choose:
 

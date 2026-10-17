@@ -1,6 +1,8 @@
 import { theme, semantic, colors, layout, shadow, controlHeight, space } from '../tokens';
 
-// Pins the palette contract. Light mode follows flexionlabs.com (v0.30.0):
+// Pins the BASE palette contract (what `theme()` returns). Since v0.33.0
+// useTheme() softens light-mode filled controls to pastel on top of this —
+// see lib/palettes.ts. Light mode follows flexionlabs.com (v0.30.0):
 // deep sage primary with white on top, pink as the highlight. Dark mode keeps
 // its sage-green primary. Filled accent surfaces (Button face, selected chip)
 // must carry a readable `accentOn` foreground.
