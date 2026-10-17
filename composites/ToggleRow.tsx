@@ -1,7 +1,7 @@
 import { View, Switch, type StyleProp, type ViewStyle } from 'react-native';
 import type { ReactNode } from 'react';
 import { colors, layout, space } from '../tokens';
-import { useScheme, useTheme } from '../UIProvider';
+import { useTheme } from '../UIProvider';
 import { Text } from '../primitives/Text';
 import { Tag } from './Tag';
 
@@ -31,9 +31,8 @@ export function ToggleRow({
   leftIcon,
   style,
 }: ToggleRowProps) {
-  const scheme = useScheme();
   const t = useTheme();
-  const trackOff = scheme === 'dark' ? colors.sand[800] : colors.sand[200];
+  const trackOff = t.border;
   return (
     <View
       style={[

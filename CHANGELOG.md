@@ -3,7 +3,31 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
-## v0.31.0
+## v0.32.0
+
+**Appearance options, after retaskable.com's settings.** Users can now choose:
+
+- **Colour palette** — Sage (the FlexionLabs look, default) plus Ink, Harbor,
+  Iris, Cedar, Grove, Amber, Clay, Bloom and Slate (retaskable's values by
+  role), optionally a different palette in dark mode. Its palettes imitating
+  other companies' products are not carried over.
+- **Text size** (A− / A / A+ / A++, on top of the OS text size), **font**
+  (system / rounded / serif), **bold text**, **high contrast** (secondary text
+  promoted, darker hairlines) and **motion** (system / reduce / full — the
+  Button press animation honours it).
+
+`useAppearanceStore` persists the choices; `UIProvider`/`useTheme` resolve the
+palette (`resolvePalette`), `Text` applies size/font/bold, and
+`useReducedMotion()` combines the choice with the OS setting. `UIProvider`
+takes an `appearance` prop to pin options for a subtree (previews, tests).
+`AppearanceSection` is the ready-made settings block (pass `copy` to translate).
+
+For the apps' NativeWind classes, `paletteVars(palette)` returns CSS variables
+for the sand / sage / brand ramps; point the tailwind colours at
+`rgb(var(--sand-50) / <alpha-value>)` etc. and apply the vars at the root so
+class-coloured screens re-colour too. SegmentedControl, ListPicker and
+ToggleRow now take their surfaces from the theme instead of fixed sand/white.
+
 
 **The rest of the retaskable kit.** Compared component by component against
 retaskable.com's UI kit (/ui-kit) and brought over everything that fits a
