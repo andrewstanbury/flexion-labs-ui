@@ -50,12 +50,12 @@ function useVariantStyle(variant: Variant) {
   }
 }
 
-// Rounded-rectangle (not pill) to match the raised button look.
+// Pill-shaped (v0.30.0), matching flexionlabs.com; the raised edge stays.
 function sizeStyle(size: Size) {
   switch (size) {
-    case 'sm': return { height: controlHeight.sm, paddingH: space[4], radius: radius.md };
-    case 'md': return { height: controlHeight.md, paddingH: space[5], radius: radius.md };
-    case 'lg': return { height: controlHeight.lg, paddingH: space[6], radius: radius.lg };
+    case 'sm': return { height: controlHeight.sm, paddingH: space[4], radius: radius.pill };
+    case 'md': return { height: controlHeight.md, paddingH: space[5], radius: radius.pill };
+    case 'lg': return { height: controlHeight.lg, paddingH: space[6], radius: radius.pill };
   }
 }
 
@@ -162,13 +162,10 @@ function ButtonRoot({
             <Text
               variant="button"
               color={variant === 'primary' ? 'inverse' : variant === 'destructive' ? 'danger' : 'primary'}
-              // Primary text uses the accent's on-color token (readable on the
-              // accent face: white on dark-mode green, dark plum on the
-              // light-mode pastel pink) rather than a forced literal.
-              style={[
-                { textTransform: 'uppercase', letterSpacing: 0.8 },
-                variant === 'primary' ? { color: v.fg } : null,
-              ]}
+              // Sentence case (v0.30.0) — the website and the cleaner reference
+              // apps label buttons as words, not shouted caps. Primary text uses
+              // the accent's on-color token rather than a forced literal.
+              style={variant === 'primary' ? { color: v.fg } : undefined}
             >
               {children}
             </Text>

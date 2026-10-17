@@ -1,30 +1,29 @@
 import { theme, semantic, colors, layout, shadow, controlHeight, space } from '../tokens';
 
-// Pins the light=pastel-pink / dark=sage-green palette contract. The two
-// schemes intentionally diverge: light mode's primary/accent is pastel pink,
-// dark mode's is sage green. Filled accent surfaces (Button face, selected
-// segment) must carry a readable `accentOn` foreground.
+// Pins the palette contract. Light mode follows flexionlabs.com (v0.30.0):
+// deep sage primary with white on top, pink as the highlight. Dark mode keeps
+// its sage-green primary. Filled accent surfaces (Button face, selected chip)
+// must carry a readable `accentOn` foreground.
 
 describe('semantic palette', () => {
-  it('light mode primary/accent is pastel pink with readable on-color', () => {
+  it('light mode primary is deep sage with white on-color, pink as highlight', () => {
     const light = theme('light');
-    expect(light.accent).toBe(colors.blossom[500]);
-    expect(light.accentSurface).toBe(colors.blossom[300]);
-    // Dark plum text on the pale pink face (never white — unreadable on pastel).
-    expect(light.accentOn).toBe(colors.blossom[800]);
-    expect(light.accentOn).not.toBe(colors.white);
+    expect(light.accentSurface).toBe(colors.sage[700]);
+    expect(light.accentOn).toBe(colors.white);
+    expect(light.highlightSurface).toBe(colors.blossom[100]);
+    expect(light.highlightOn).toBe(colors.blossom[800]);
   });
 
-  it('dark mode keeps a sage-green primary with white on-color', () => {
+  it('dark mode keeps a sage-green primary with readable deep-sage on-color', () => {
     const dark = theme('dark');
     expect(dark.accent).toBe(colors.sage[400]);
     expect(dark.accentSurface).toBe(colors.sage[400]);
-    expect(dark.accentOn).toBe(colors.white);
+    expect(dark.accentOn).toBe(colors.sage[900]);
   });
 
   it('every scheme exposes the full accent-fill token set', () => {
     for (const scheme of ['light', 'dark'] as const) {
-      for (const key of ['accent', 'accentSurface', 'accentOn', 'accentBorder', 'accentEdge'] as const) {
+      for (const key of ['accent', 'accentSurface', 'accentOn', 'accentBorder', 'accentEdge', 'highlight', 'highlightSurface', 'highlightOn'] as const) {
         expect(semantic[scheme][key]).toMatch(/^#|^transparent$/);
       }
     }
