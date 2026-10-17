@@ -3,7 +3,22 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
-## v0.35.0
+## v0.35.1
+
+**Narrator hardening for real devices** (behaviour the mocks did not model):
+
+- A recording that reports an error is reloaded once before its panel falls
+  back to speech, and errors while nothing should be playing (an abandoned
+  load during a fast scrub) don't count at all. iOS reports a cancelled load as
+  an error, which used to switch a good recording to on-device speech for the
+  rest of the session — and retime the panels.
+- Speech that starts within 150ms of stopping speech waits out the stop
+  (iOS drops an utterance spoken while the previous one is still stopping); a
+  newer take cancels the wait.
+- `[narrator]` log in development builds (Expo Go / dev client): every take,
+  load/seek/play, speech and player status — read it from the Metro output to
+  diagnose a device-only glitch. Silent in tests and release builds.
+
 
 **The panel player is rebuilt on a pure playback model.** Narration had been
 driven by scattered effects and handlers sharing "already narrated" flags, and

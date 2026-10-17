@@ -47,6 +47,26 @@ function loadExpoAudio(): ExpoAudio | null {
   return expoAudio;
 }
 
+// Narrator log for development builds (Expo Go / dev client): every narration
+// decision and native audio/speech call, so a glitch seen on a device can be
+// read back from the Metro log rather than guessed at. Silent in tests and in
+// release builds.
+const narratorLog = (...parts: unknown[]) => {
+  if (typeof __DEV__ !== 'undefined' && __DEV__ && process.env.NODE_ENV !== 'test') {
+    console.log('[narrator]', ...parts);
+  }
+};
+
+// iOS drops an utterance spoken immediately after the previous one was
+// stopped (AVSpeechSynthesizer finishes stopping asynchronously). Speech that
+// follows a stop within this window waits it out.
+const SPEECH_RESTART_GAP_MS = 150;
+// A recording that reports an error is reloaded this many times before its
+// panel falls back to speech. Fast scrubbing replaces a clip while the last
+// one is still loading, and iOS reports the abandoned load as an error — that
+// must not condemn a good recording for the rest of the session.
+const CLIP_RETRIES = 1;
+
 const DEFAULT_INTERVAL_MS = 1800;
 const FADE_MS = 900;
 const TICK_MS = 100;
@@ -364,6 +384,8 @@ export function PanelCarousel({
   const audioPlayerRef = useRef<AudioPlayer | null>(null);
   const audioSubscriptionRef = useRef<{ remove: () => void } | null>(null);
   const clipUrlRef = useRef<string | null>(null);
+  // The latest intent, for handlers that run outside render (status events).
+  const intentRef = useRef<ReturnType<typeof narrationIntent>>({ kind: 'silent', key: 'init' });
   const audioModeSetRef = useRef(false);
   // playsInSilentMode mirrors what useApplicationAudioSession:false buys
   // expo-speech: without it the iPhone ring/silent switch mutes the narrator.
@@ -376,12 +398,33 @@ export function PanelCarousel({
       // Audio session unavailable — playback still attempts.
     });
   };
+  // Gives up on a recording for this mount: its panel narrates via speech and
+  // its timing falls back to the word-count estimate (the timeline retimes).
   const failClip = (url: string | null) => {
     if (!url || !mountedRef.current) return;
+    narratorLog('clip failed for good', url);
     driver.clipFailed(url);
-    // Resolved without its audio, the step narrates via speech and its timing
-    // falls back to the word-count estimate (the timeline retimes below).
     setFailedAudioUrls((prev) => (prev.includes(url) ? prev : [...prev, url]));
+  };
+  // An error from the audio player. Not necessarily the recording's fault —
+  // see CLIP_RETRIES — so reload and retry the current take first.
+  const clipErrorsRef = useRef(new Map<string, number>());
+  const onClipError = (url: string | null, error: unknown) => {
+    if (!url || !mountedRef.current) return;
+    narratorLog('clip error', url, error);
+    driver.clipFailed(url); // forget it is loaded; the next apply reloads it
+    const current = intentRef.current;
+    // Nothing is meant to be playing (paused, scrubbing, another panel): the
+    // error is from an abandoned load and costs the recording nothing.
+    if (current.kind !== 'clip' || current.url !== url) return;
+    const errors = (clipErrorsRef.current.get(url) ?? 0) + 1;
+    clipErrorsRef.current.set(url, errors);
+    if (errors > CLIP_RETRIES) {
+      failClip(url);
+      return;
+    }
+    narratorLog('retrying clip', url, `(${errors}/${CLIP_RETRIES})`);
+    driver.apply(current);
   };
   const ensurePlayer = (): AudioPlayer => {
     if (audioPlayerRef.current) return audioPlayerRef.current;
@@ -393,36 +436,80 @@ export function PanelCarousel({
     audioPlayerRef.current = player;
     // Load/playback failures (expired signed URL, network, decoder) arrive
     // asynchronously as an error status, not a thrown error.
+    let lastStatus = '';
     audioSubscriptionRef.current = player.addListener('playbackStatusUpdate', (status) => {
-      if (status.error) failClip(clipUrlRef.current);
-      else if (status.isLoaded && clipUrlRef.current) driver.clipLoaded(clipUrlRef.current);
+      const summary = `loaded=${status.isLoaded} playing=${status.playing} finished=${status.didJustFinish}`;
+      if (summary !== lastStatus) {
+        lastStatus = summary;
+        narratorLog('status', clipUrlRef.current, summary);
+      }
+      if (status.error) {
+        onClipError(clipUrlRef.current, status.error);
+        return;
+      }
+      if (status.isLoaded && clipUrlRef.current) {
+        clipErrorsRef.current.delete(clipUrlRef.current);
+        driver.clipLoaded(clipUrlRef.current);
+      }
     });
     return player;
   };
+  const speechStartedRef = useRef(false);
+  const lastSpeechStopRef = useRef(-Infinity);
+  const speechTokenRef = useRef(0);
   const driverRef = useRef<NarrationDriver | null>(null);
   if (!driverRef.current) {
     const backend: NarrationBackend = {
-      speak: (text, rate) =>
-        Speech.speak(text, {
-          rate,
-          voice: preferredVoiceRef.current,
-          // iOS: without this, speech rides whatever audio session the REST
-          // of the app happens to have active — silently inaudible wherever
-          // nothing else has activated one. false makes expo-speech manage
-          // its own session, so narration is audible on its own.
-          useApplicationAudioSession: false,
-        }),
-      stopSpeech: () => Speech.stop(),
+      speak: (text, rate) => {
+        const token = speechTokenRef.current;
+        const start = () => {
+          // A newer stop (another take) since this was scheduled: drop it.
+          if (token !== speechTokenRef.current || !mountedRef.current) return;
+          narratorLog('speak', JSON.stringify(text), `rate=${rate.toFixed(2)}`);
+          speechStartedRef.current = true;
+          Speech.speak(text, {
+            rate,
+            voice: preferredVoiceRef.current,
+            // iOS: without this, speech rides whatever audio session the REST
+            // of the app happens to have active — silently inaudible wherever
+            // nothing else has activated one. false makes expo-speech manage
+            // its own session, so narration is audible on its own.
+            useApplicationAudioSession: false,
+            // A line that finished on its own needs no restart gap before
+            // the next panel's line.
+            onDone: () => {
+              if (token === speechTokenRef.current) speechStartedRef.current = false;
+            },
+          });
+        };
+        const sinceStop = Date.now() - lastSpeechStopRef.current;
+        if (sinceStop < SPEECH_RESTART_GAP_MS) setTimeout(start, SPEECH_RESTART_GAP_MS - sinceStop);
+        else start();
+      },
+      stopSpeech: () => {
+        speechTokenRef.current += 1;
+        // Only a real stop opens the restart gap; stopping silence is free.
+        if (speechStartedRef.current) {
+          speechStartedRef.current = false;
+          lastSpeechStopRef.current = Date.now();
+        }
+        Speech.stop();
+      },
       loadClip: (url) => {
+        narratorLog('load', url);
         clipUrlRef.current = url;
         ensurePlayer().replace({ uri: url });
       },
       seekClip: (seconds) => {
+        narratorLog('seek', seconds.toFixed(2));
         const p = audioPlayerRef.current;
         if (p) Promise.resolve(p.seekTo(seconds)).catch(() => {});
       },
       setClipRate: (rate) => audioPlayerRef.current?.setPlaybackRate(rate),
-      playClip: () => audioPlayerRef.current?.play(),
+      playClip: () => {
+        narratorLog('play', clipUrlRef.current);
+        audioPlayerRef.current?.play();
+      },
       pauseClip: () => audioPlayerRef.current?.pause(),
     };
     driverRef.current = new NarrationDriver(backend);
@@ -452,11 +539,20 @@ export function PanelCarousel({
   // Narration is allowed while visible and no screen reader is speaking.
   const narrationEnabled = narrate && active && !screenReaderEnabled;
   const intent = narrationIntent(pb, boundaries, narrate ? resolvedSteps : null, narrationEnabled);
+  intentRef.current = intent;
   useEffect(() => {
+    narratorLog(
+      'take',
+      intent.key,
+      intent.kind,
+      intent.kind === 'clip' ? `${intent.url} from ${(intent.startMs / 1000).toFixed(2)}s` : '',
+      `@${(pb.elapsedMs / 1000).toFixed(2)}s`,
+    );
     try {
       driver.apply(intent);
-    } catch {
+    } catch (error) {
       // The native player refused the source outright — speak it instead.
+      narratorLog('apply threw', error);
       if (intent.kind === 'clip') failClip(intent.url);
     }
     // The key identifies the take; the rest of the intent is fixed for it.

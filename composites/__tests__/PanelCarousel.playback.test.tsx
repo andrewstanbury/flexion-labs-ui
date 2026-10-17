@@ -151,6 +151,7 @@ describe('PanelCarousel playback — behaves like a video with a narrator track'
       const { rerender, getByTestId } = mount();
       const listener = player().addListener.mock.calls[0][1];
       act(() => listener({ error: 'HTTP 403' }));
+      act(() => listener({ error: 'HTTP 403' })); // past the retry
       expect(speak).toHaveBeenCalled(); // fell back to TTS for a.mp3
       speak.mockClear();
       player().play.mockClear();
@@ -252,6 +253,7 @@ describe('PanelCarousel playback — behaves like a video with a narrator track'
       fireEvent.press(getByTestId('c-toggle'));
       speak.mockClear();
       fireEvent.press(getByTestId('c-toggle'));
+      act(() => jest.advanceTimersByTime(200)); // the speech restart gap
       expect(speak).toHaveBeenCalledWith(textOnly[0].text, expect.any(Object));
 
       act(() => jest.advanceTimersByTime(3500)); // well past the line's midpoint
@@ -460,6 +462,60 @@ describe('PanelCarousel playback — behaves like a video with a narrator track'
       playFor(12000);
       expect(speak).toHaveBeenCalledWith('Hold at the top.', expect.any(Object));
       expect(player().play).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('device behaviour', () => {
+    it('one error from a recording is retried — it reloads and keeps playing the recording', () => {
+      mount();
+      const listener = player().addListener.mock.calls[0][1];
+      player().replace.mockClear();
+      player().play.mockClear();
+      act(() => listener({ error: 'cancelled' }));
+      expect(player().replace).toHaveBeenCalledWith({ uri: 'https://cdn/a.mp3' });
+      expect(player().play).toHaveBeenCalledTimes(1);
+      expect(speak).not.toHaveBeenCalled();
+    });
+
+    it('an error while nothing should be playing (an abandoned load) does not count against the recording', () => {
+      const { getByTestId } = mount();
+      const listener = player().addListener.mock.calls[0][1];
+      reveal(getByTestId);
+      fireEvent.press(getByTestId('c-toggle')); // pause
+      act(() => listener({ error: 'cancelled' }));
+      act(() => listener({ error: 'cancelled' }));
+      act(() => listener({ error: 'cancelled' }));
+      player().play.mockClear();
+      fireEvent.press(getByTestId('c-toggle')); // resume
+      expect(lastSource()).toBe('https://cdn/a.mp3');
+      expect(player().play).toHaveBeenCalledTimes(1);
+      expect(speak).not.toHaveBeenCalled();
+    });
+
+    it('a successful load resets the retry budget, so later errors are retried again', () => {
+      mount();
+      const listener = player().addListener.mock.calls[0][1];
+      act(() => listener({ error: 'cancelled' }));
+      act(() => listener({ isLoaded: true }));
+      act(() => listener({ error: 'cancelled' }));
+      expect(speak).not.toHaveBeenCalled();
+    });
+
+    it('speech right after stopping speech waits out the stop, and a newer take cancels it', () => {
+      const textOnly = [{ text: 'One.', holdSeconds: 0.5 }, { text: 'Two.', holdSeconds: 0.5 }, { text: 'Three.' }];
+      const { getByTestId } = render(
+        <PanelCarousel uris={['a.png', 'b.png', 'c.png']} narrate steps={textOnly} intervalMs={500} testID="c" />,
+      );
+      fireEvent(getByTestId('c'), 'layout', { nativeEvent: { layout: { width: 300, height: 300 } } });
+      expect(speak).toHaveBeenLastCalledWith('One.', expect.any(Object));
+      reveal(getByTestId);
+      speak.mockClear();
+      fireEvent.press(getByTestId('c-next')); // -> Two (gap pending)
+      fireEvent.press(getByTestId('c-next')); // -> Three before the gap ends
+      expect(speak).not.toHaveBeenCalled();
+      act(() => jest.advanceTimersByTime(200));
+      expect(speak).toHaveBeenCalledTimes(1);
+      expect(speak).toHaveBeenLastCalledWith('Three.', expect.any(Object));
     });
   });
 });
