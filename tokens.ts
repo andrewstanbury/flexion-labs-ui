@@ -86,7 +86,11 @@ export const colors = {
 // the raw palette, so the day we re-skin we change one mapping not 200
 // references. Each role resolves at theme-resolution time (see `theme()`).
 export const semantic = {
-  // Light mode: warm beige surfaces with a pastel-pink primary/accent.
+  // Light mode (v0.30.0): the flexionlabs.com look — warm cream surfaces, deep
+  // sage as the primary (filled buttons, selected states, links) with white on
+  // top, and pastel pink kept as the HIGHLIGHT colour (tinted callouts, badges)
+  // rather than the primary. Pink-on-cream filled buttons read as soft and
+  // failed contrast with white labels; sage-700 + white is 6.6:1.
   light: {
     surface:          colors.sand[50],
     surfaceElevated:  colors.white,
@@ -95,17 +99,19 @@ export const semantic = {
     textPrimary:      colors.sand[900],
     textSecondary:    colors.sand[700],
     textMuted:        colors.sand[500],
-    accent:           colors.blossom[500],
-    accentStrong:     colors.blossom[600],
-    accentMuted:      colors.blossom[100],
-    // Filled accent surfaces (e.g. the primary Button face, selected segment):
-    // a pale pastel face with readable dark-plum content on top.
-    accentSurface:    colors.blossom[300],
-    accentOn:         colors.blossom[800],
-    // Gentle, UNIFIED border + depression edge (v0.7.1): the raised button's
-    // outline and its 3D base use the same soft pink so they read as one piece.
-    accentBorder:     colors.blossom[500],
-    accentEdge:       colors.blossom[500],
+    accent:           colors.sage[600],
+    accentStrong:     colors.sage[700],
+    accentMuted:      colors.sage[50],
+    // Filled accent surfaces (the primary Button face, selected chip/segment).
+    accentSurface:    colors.sage[700],
+    accentOn:         colors.white,
+    // The raised button's outline and the darker base it rests on.
+    accentBorder:     colors.sage[700],
+    accentEdge:       colors.sage[800],
+    // Highlight: the website's pink — tinted callouts, icon tiles, tags.
+    highlight:        colors.blossom[500],
+    highlightSurface: colors.blossom[100],
+    highlightOn:      colors.blossom[800],
     energy:           colors.coral[500],
     energyStrong:     colors.coral[600],
     danger:           colors.danger[600],
@@ -123,11 +129,15 @@ export const semantic = {
     accent:           colors.sage[400],
     accentStrong:     colors.sage[300],
     accentMuted:      colors.sage[800],
-    // Green fill with white content on top (the established dark-mode look).
+    // Green fill with deep-sage content on top. White on sage-400 was 2.6:1 —
+    // below the 4.5:1 minimum for a button label; sage-900 on it is ~5:1.
     accentSurface:    colors.sage[400],
-    accentOn:         colors.white,
+    accentOn:         colors.sage[900],
     accentBorder:     colors.sage[600],
     accentEdge:       colors.sage[700],
+    highlight:        colors.blossom[400],
+    highlightSurface: colors.blossom[900],
+    highlightOn:      colors.blossom[200],
     energy:           colors.coral[500],
     energyStrong:     colors.coral[600],
     danger:           colors.danger[400],

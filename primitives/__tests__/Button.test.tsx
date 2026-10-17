@@ -1,6 +1,7 @@
 import { StyleSheet } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import { Button } from '../Button';
+import { theme } from '../../tokens';
 
 function labelStyle(node: { props: { style: unknown } }) {
   return StyleSheet.flatten(node.props.style as object) as { textTransform?: string };
@@ -14,9 +15,9 @@ describe('<Button />', () => {
     expect(onPress).toHaveBeenCalled();
   });
 
-  it('uppercases the label (the raised/physical look)', () => {
+  it('labels in sentence case, not uppercase (v0.30.0)', () => {
     const { getByText } = render(<Button.Primary>Go</Button.Primary>);
-    expect(labelStyle(getByText('Go')).textTransform).toBe('uppercase');
+    expect(labelStyle(getByText('Go')).textTransform).toBeUndefined();
   });
 
   it('tints the icon to the button text color, overriding the caller color', () => {
@@ -25,10 +26,10 @@ describe('<Button />', () => {
       seen.push(color);
       return null;
     };
-    // Caller passes white, but the Button forces the icon to its own fg color.
-    render(<Button.Primary leftIcon={<Stub color="#FFFFFF" />}>Go</Button.Primary>);
+    // Caller passes an arbitrary colour, but the Button forces the icon to its
+    // own fg colour — the theme's on-accent colour for a primary button.
+    render(<Button.Primary leftIcon={<Stub color="#123456" />}>Go</Button.Primary>);
     expect(seen).toHaveLength(1);
-    expect(seen[0]).not.toBe('#FFFFFF');
-    expect(seen[0]).toMatch(/^#[0-9A-Fa-f]{6}$/);
+    expect(seen[0]).toBe(theme('light').accentOn);
   });
 });

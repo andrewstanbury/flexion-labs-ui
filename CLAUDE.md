@@ -34,7 +34,7 @@ Consequences:
 - App code must import from the package root (`@flexion-labs/ui`), never from a
   deep path inside the package.
 - Release history is in [`CHANGELOG.md`](./CHANGELOG.md) (keep it updated on every
-  version bump) plus the git tags. Current tags: v0.1.0 … v0.29.1.
+  version bump) plus the git tags. Current tags: v0.1.0 … v0.30.0.
 
 ### Current public export surface (the contract)
 
@@ -65,7 +65,8 @@ breaking release across both apps.
 - **Composites** (`composites/`): `FormField`, `SectionHeader`, `ListItem`,
   `SegmentedControl`, `ToggleRow`, `EmptyState`, `StatusScreen`,
   `AuthScreenShell`, `StorageBar`, `OfflineBanner`, `SyncStatusDot`,
-  `SyncStatusBar`, `SyncStatusShell`, `PanelCarousel` (+ `PanelStep` type —
+  `SyncStatusBar`, `SyncStatusShell`, `Tag`, `FilterChips`, `ListGroup`
+  (+ `ListGroup.Row`), `IconTile` (v0.30.0), `PanelCarousel` (+ `PanelStep` type —
   video-like player for an ordered set of static panel images; optional
   `narrate`/`steps` props add on-device TTS narration via `expo-speech`, a
   peer dependency as of v0.21.0; steps with `audioUrl` play pre-generated
@@ -175,8 +176,9 @@ and `dark:` classes both follow the persisted preference. **Keep that wrapper in
 place** — removing it reintroduces the OS-vs-store divergence. A characterization
 test pins the resolution behavior; update it if you change either path.
 
-The two schemes diverge **by design** (v0.6.0): light mode is pastel pink
-(`blossom` ramp), dark mode is sage green. See `tokens.ts` `semantic.light` /
+The two schemes diverge **by design**: since v0.30.0 light mode's primary is
+deep sage with pink as the highlight (the flexionlabs.com look); dark mode is
+sage green. See `tokens.ts` `semantic.light` /
 `semantic.dark` and the `accent*` roles (`accent`, `accentSurface`, `accentOn`,
 `accentBorder`, `accentEdge`) — filled accent surfaces carry a readable
 `accentOn` foreground (dark plum on pink, white on green). Characterization

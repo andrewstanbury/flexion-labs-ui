@@ -1,13 +1,13 @@
 import { View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
-import { layout, radius, space } from '../tokens';
+import { colors, layout, space } from '../tokens';
 import { useTheme } from '../UIProvider';
 import { Screen } from '../primitives/Screen';
 import { Icon, type IconProps } from '../primitives/Icon';
 import { Text } from '../primitives/Text';
 
 // AuthScreenShell — Welcome / Sign-In / Sign-Up share the same vertical
-// layout: scrollable center-justified column, a round icon "hero," title,
+// layout: scrollable center-justified column, a logo/icon tile, title,
 // subtitle, then the form body. Use this as the outermost wrapper of any
 // auth route and pass form rows as children.
 
@@ -48,23 +48,42 @@ export function AuthScreenShell({
           {topAccessory ? <View style={{ marginBottom: space[6] }}>{topAccessory}</View> : null}
 
           <View style={{ alignItems: 'center', marginBottom: space[8] }}>
-            <View
-              style={{
-                width: 80,
-                height: 80,
-                borderRadius: radius.pill,
-                backgroundColor: t.accent,
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: space[5],
-              }}
-            >
-              {iconLabel ? (
-                <Text variant="display" style={{ color: '#FFFFFF' }}>{iconLabel}</Text>
-              ) : iconName ? (
-                <Icon name={iconName} size="xl" color="inverse" />
-              ) : null}
-            </View>
+            {iconLabel ? (
+              // The FlexionLabs mark as on flexionlabs.com and the app icon: a
+              // sage letter with a dot on a cream rounded square.
+              <View
+                style={{
+                  width: 80,
+                  height: 80,
+                  borderRadius: 22,
+                  backgroundColor: colors.sand[100],
+                  borderWidth: 1,
+                  borderColor: t.border,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: space[5],
+                }}
+              >
+                <Text variant="display" style={{ color: colors.sage[700], fontSize: 40, lineHeight: 46 }}>
+                  {iconLabel}
+                  <Text variant="display" style={{ color: colors.sage[500], fontSize: 40, lineHeight: 46 }}>.</Text>
+                </Text>
+              </View>
+            ) : iconName ? (
+              <View
+                style={{
+                  width: 80,
+                  height: 80,
+                  borderRadius: 22,
+                  backgroundColor: t.accentMuted,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: space[5],
+                }}
+              >
+                <Icon name={iconName} size="xl" color={t.accentStrong} />
+              </View>
+            ) : null}
             <Text variant="h1" color="primary" style={{ textAlign: 'center' }}>
               {title}
             </Text>

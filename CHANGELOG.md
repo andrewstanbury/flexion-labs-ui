@@ -3,6 +3,36 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.30.0
+
+**The flexionlabs.com look, plus four components from the cleaner reference apps.**
+
+Colours (light mode): the primary is now deep sage (`sage-700` face, white
+label, `sage-800` raised edge) instead of pastel pink with plum text — the
+website's look, and 6.6:1 where white-on-pink failed. Pink moves to a new
+**highlight** role (`highlight`, `highlightSurface`, `highlightOn`, in both
+schemes) for tinted callouts, tags and icon tiles.
+
+Colours (dark mode): unchanged surfaces and sage primary, but the label on a
+filled accent (`accentOn`) is now `sage-900` instead of white — white on
+`sage-400` was 2.6:1, below the 4.5:1 minimum for button text.
+
+Buttons are pill-shaped with sentence-case labels (were rounded rectangles in
+uppercase); the raised edge and press animation are unchanged.
+
+`AuthScreenShell` with `iconLabel` now draws the FlexionLabs mark (sage letter
+and dot on a cream rounded square) like the website and app icon.
+
+New composites:
+- `Tag` — small tinted status label (`neutral`/`accent`/`highlight`/`energy`/`danger`).
+- `FilterChips` — scrolling single-select pill filters with optional counts.
+- `ListGroup` + `ListGroup.Row` — rows on one bordered card split by hairlines,
+  with an optional uppercase title.
+- `IconTile` — the website's soft rounded-square icon holder (sage or pink).
+
+Apps that hand-roll selected/active states with `bg-blossom-400` classes should
+move them to `bg-sage-700` (or the new components) so they match.
+
 ## v0.29.1
 
 **Fix: `expo-audio` is loaded on first use, not at import.** v0.29.0 imported
