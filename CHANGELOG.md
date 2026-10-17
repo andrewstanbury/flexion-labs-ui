@@ -3,6 +3,15 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.29.1
+
+**Fix: `expo-audio` is loaded on first use, not at import.** v0.29.0 imported
+it at the top of `PanelCarousel`, which `index.ts` re-exports, so every import
+of the package loaded the native module — breaking both apps' jest runs (which
+don't mock it) and risking the all-screens crash a failing native import
+causes. It now loads when a step with `audioUrl` first plays; if it is
+unavailable, that step narrates via expo-speech. Use v0.29.1, not v0.29.0.
+
 ## v0.29.0
 
 **Fix: a timed-out read is retried once** (`createApiTransport`). The backend

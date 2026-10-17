@@ -10,7 +10,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import * as Speech from 'expo-speech';
-import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
+import type { AudioPlayer } from 'expo-audio';
 import { Icon } from '../primitives/Icon';
 import { Pressable } from '../primitives/Pressable';
 // The design-system Text, not RN's — the clock readout inherits the same font
@@ -18,6 +18,25 @@ import { Pressable } from '../primitives/Pressable';
 import { Text } from '../primitives/Text';
 import { useTheme } from '../UIProvider';
 import { NARRATION_RATE, narrationMs } from '../lib/panelTiming';
+
+// expo-audio is loaded on first use, never at import time. index.ts re-exports
+// this file, so a top-level import would load the native module for every
+// consumer of the package — every screen of both apps, and their jest runs —
+// and a native module that throws on import takes all of them down at once.
+// Without it, recorded narration falls back to expo-speech like any other
+// playback failure.
+type ExpoAudio = typeof import('expo-audio');
+let expoAudio: ExpoAudio | null | undefined;
+function loadExpoAudio(): ExpoAudio | null {
+  if (expoAudio === undefined) {
+    try {
+      expoAudio = require('expo-audio') as ExpoAudio;
+    } catch {
+      expoAudio = null;
+    }
+  }
+  return expoAudio;
+}
 
 const DEFAULT_INTERVAL_MS = 1800;
 const FADE_MS = 900;
@@ -494,13 +513,14 @@ export function PanelCarousel({
     narratedIndexRef.current = idx;
     stopNarration();
     const step = resolvedSteps[idx];
-    if (step.audioUrl) {
+    const audio = step.audioUrl ? loadExpoAudio() : null;
+    if (step.audioUrl && audio) {
       // Recorded narration. playsInSilentMode mirrors what
       // useApplicationAudioSession:false buys expo-speech below: without it
       // the iOS ring/silent switch mutes the narrator. Set once per mount.
       if (!audioModeSetRef.current) {
         audioModeSetRef.current = true;
-        setAudioModeAsync({ playsInSilentMode: true }).catch(() => {
+        audio.setAudioModeAsync({ playsInSilentMode: true }).catch(() => {
           // Audio session unavailable — playback still attempts below.
         });
       }
@@ -508,7 +528,7 @@ export function PanelCarousel({
       try {
         let player = audioPlayerRef.current;
         if (!player) {
-          player = createAudioPlayer({ uri: url });
+          player = audio.createAudioPlayer({ uri: url });
           audioPlayerRef.current = player;
           // Load/playback failures (expired signed URL, network, decoder)
           // arrive asynchronously as an error status, not a thrown error.
