@@ -3,7 +3,31 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
-## v0.34.1
+## v0.35.0
+
+**The panel player is rebuilt on a pure playback model.** Narration had been
+driven by scattered effects and handlers sharing "already narrated" flags, and
+each control found a new way to desync them — most recently scrubbing and the
+previous button. Now:
+
+- `lib/panelPlayback.ts` — a pure reducer owns the clock and every control,
+  and `narrationIntent()` derives what the narrator should be doing.
+- `lib/narrationDriver.ts` — the only thing that starts or stops narration;
+  it acts when the intent's take changes.
+- `PanelCarousel` dispatches and renders. Public props are unchanged.
+
+Fixes along the way: seeks could be overwritten by a clock tick computed from
+a stale position (previous/next "snapping back"); the scrub PanResponder was
+rebuilt every render and lost its gesture state mid-drag; touches on the
+timeline's inner bar measured from the wrong origin; a drag whose release was
+lost left the player stuck silent; a scrub could be stolen by a parent scroll
+view (`onPanResponderTerminationRequest: false`).
+
+Testing: 26 model/driver tests plus **400 randomized control sequences**
+checked against narration invariants, component tests for every reported
+glitch, and `npm run test:player` — the player suites with a per-file coverage
+floor — in CI and `verify`. See `docs/player.md`.
+
 
 **Fix: the first panel's narration could be silent.** Two first-clip-only
 differences: the audio session (playsInSilentMode) was set asynchronously at
