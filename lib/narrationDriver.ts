@@ -2,7 +2,7 @@ import type { NarrationIntent } from './panelPlayback';
 
 // Makes the narrator do what narrationIntent() says — and nothing else. It
 // decides WHICH take runs; the ordering of native audio commands within a
-// take (load → wait → seek → play → confirm) is ClipSequencer's job, behind
+// take (buffer → seek → play → confirm) is ClipBank's job, behind
 // startClip/stopClip. Backends are injected so this is tested without native
 // modules; PanelCarousel wires expo-speech and the sequencer in.
 

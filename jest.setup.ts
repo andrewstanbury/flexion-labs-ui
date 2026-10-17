@@ -48,34 +48,73 @@ jest.mock('nativewind', () => ({
 // is tested against this shared player stub (play/pause/replace calls), not
 // real audio. One player object so tests can inspect it via createAudioPlayer.
 jest.mock('expo-audio', () => {
-  // Emits status events the way iOS does, synchronously so tests stay simple:
-  // replace() → unloaded then loaded; play() → playing; pause() → not playing.
-  const listeners: ((s: unknown) => void)[] = [];
-  const emit = (s: unknown) => listeners.forEach((l) => l(s));
-  const player = {
-    play: jest.fn(() => emit({ isLoaded: true, playing: true })),
-    pause: jest.fn(() => emit({ isLoaded: true, playing: false })),
-    replace: jest.fn(() => {
-      emit({ isLoaded: false, playing: false });
-      emit({ isLoaded: true, playing: false });
-    }),
-    remove: jest.fn(),
+  // One mock player per createAudioPlayer() call, emitting status events the
+  // way iOS does (synchronously, so tests stay simple): created loaded;
+  // play() → playing; pause() → not playing. Every player's calls land on the
+  // SHARED spies in __spies, with the player's uri, so a test can assert on
+  // "the narrator" without tracking which player is which: play(uri, pos),
+  // seekTo(sec, uri), pause(uri). __players lists them; each has __emit.
+  const spies = {
+    play: jest.fn(),
+    pause: jest.fn(),
+    seekTo: jest.fn(),
     setPlaybackRate: jest.fn(),
-    seekTo: jest.fn().mockResolvedValue(undefined),
-    addListener: jest.fn((_event: string, fn: (s: unknown) => void) => {
-      listeners.push(fn);
-      return {
-        remove: jest.fn(() => {
-          const i = listeners.indexOf(fn);
-          if (i >= 0) listeners.splice(i, 1);
-        }),
-      };
-    }),
-    __emit: emit,
-    __listeners: listeners,
+    remove: jest.fn(),
   };
+  const players: unknown[] = [];
+  const createAudioPlayer = jest.fn((source?: { uri?: string } | null) => {
+    const uri = source?.uri ?? null;
+    const listeners: ((s: unknown) => void)[] = [];
+    const emit = (s: { isLoaded?: boolean; [k: string]: unknown }) => {
+      if (s.isLoaded) p.isLoaded = true;
+      [...listeners].forEach((l) => l(s));
+    };
+    const p = {
+      uri,
+      pos: 0,
+      isLoaded: true,
+      currentTime: 0,
+      play: () => {
+        spies.play(uri, p.pos);
+        // A player that has not loaded cannot play (iOS drops the press).
+        if (p.isLoaded) emit({ isLoaded: true, playing: true });
+      },
+      pause: () => {
+        spies.pause(uri);
+        if (p.isLoaded) emit({ isLoaded: true, playing: false });
+      },
+      seekTo: (sec: number) => {
+        p.pos = sec;
+        spies.seekTo(sec, uri);
+      },
+      setPlaybackRate: (r: number) => spies.setPlaybackRate(r, uri),
+      remove: () => spies.remove(uri),
+      replace: jest.fn(),
+      addListener: jest.fn((_event: string, fn: (s: unknown) => void) => {
+        listeners.push(fn);
+        return {
+          remove: jest.fn(() => {
+            const i = listeners.indexOf(fn);
+            if (i >= 0) listeners.splice(i, 1);
+          }),
+        };
+      }),
+      __emit: emit,
+    };
+    players.push(p);
+    return p;
+  });
   return {
-    createAudioPlayer: jest.fn(() => player),
+    createAudioPlayer,
     setAudioModeAsync: jest.fn().mockResolvedValue(undefined),
+    __spies: spies,
+    __players: players,
   };
 });
+
+// Narration files resolve to their URL synchronously in component tests (no
+// download). lib/narrationFiles itself is tested with requireActual.
+jest.mock('./lib/narrationFiles', () => ({
+  resolveNarrationFile: (url: string) => url,
+  narrationFileName: jest.requireActual('./lib/narrationFiles').narrationFileName,
+}));

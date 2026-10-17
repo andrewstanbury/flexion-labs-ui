@@ -3,6 +3,34 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.37.0
+
+**Narrator redesign: buffered recordings, and the narrator drives the clock.**
+
+- New `lib/clipBank.ts` replaces `lib/clipSequencer.ts`. Every recording is
+  fetched to a local file when the player mounts (`lib/narrationFiles.ts`) and
+  gets its own preloaded expo-audio player; switching panels is pause → seek →
+  play on a player that is already loaded — no more source swapping, which was
+  the root of the late, missing and glitching narration on devices (streamed
+  clips buffering while iOS reported "playing", and a 1.5s stall on the first
+  clip).
+- The panel clock now waits for its recording to be audibly playing (new
+  `awaiting` state in `lib/panelPlayback.ts`, actions `awaitNarration` /
+  `narrationStarted`), like a video buffering — a spinner shows past 300ms. A
+  recording that never starts (8s) falls back to speech; nothing waits forever.
+- Players use `keepAudioSessionActive` and 100ms status updates.
+- Next on the last panel goes to the end (stopped, replay offered) instead of
+  restarting that panel; previous from the end goes to the last panel.
+- `HeroBanner`: the image/art now fills the whole banner (it drew at its
+  intrinsic size and left the header partly uncovered); the wash is the
+  website's hero shade; new `highlight` prop puts trailing words in the
+  site's pink (`.hl`).
+- Tests: `clipBank` and `narrationFiles` suites; component tests for buffering,
+  the held clock, late-loading clips after next/back, and the fallbacks; hold
+  invariants added to the randomized sequences. Both files are in the
+  `test:player` coverage gate. The expo-audio mock now creates one player per
+  recording.
+
 ## v0.36.1
 
 **Narrator: audio commands run in order (fixes next/back glitches).**

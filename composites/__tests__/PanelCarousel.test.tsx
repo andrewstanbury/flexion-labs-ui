@@ -8,7 +8,13 @@ const speak = Speech.speak as jest.Mock;
 const stop = Speech.stop as jest.Mock;
 const createPlayer = createAudioPlayer as jest.Mock;
 // The jest.setup.ts stub hands back one shared player object.
-const player = () => createPlayer.mock.results[createPlayer.mock.results.length - 1]?.value ?? createPlayer();
+// jest.setup.ts: one mock player per recording; their calls land on shared
+// spies (play(uri, pos), pause(uri), remove(uri)).
+ 
+const audioMock = require('expo-audio');
+const player = () => audioMock.__spies;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const playerFor = (uri: string): any => audioMock.__players.filter((p: { uri: string }) => p.uri === uri).pop();
 
 // Screen-reader state defaults OFF for every test (via mockResolvedValue) —
 // individual tests override it to exercise the screen-reader-on behavior.
@@ -74,6 +80,7 @@ describe('<PanelCarousel />', () => {
   beforeEach(() => {
     jest.useFakeTimers();
     jest.clearAllMocks();
+    audioMock.__players.length = 0;
     mockScreenReaderEnabled(false);
   });
   afterEach(() => jest.useRealTimers());
@@ -560,7 +567,8 @@ describe('<PanelCarousel />', () => {
         <PanelCarousel uris={['a.jpg', 'b.jpg']} narrate intervalMs={500} steps={audioSteps} testID="carousel" />,
       );
       layout(getByTestId('carousel'));
-      expect(player().replace).toHaveBeenCalledWith({ uri: 'https://cdn/a.mp3' });
+      expect(createPlayer).toHaveBeenCalledWith({ uri: 'https://cdn/a.mp3' }, expect.any(Object));
+      expect(player().play).toHaveBeenCalledWith('https://cdn/a.mp3', 0);
       expect(player().play).toHaveBeenCalled();
       expect(speak).not.toHaveBeenCalled();
     });
@@ -606,13 +614,7 @@ describe('<PanelCarousel />', () => {
       );
       layout(getByTestId('carousel'));
       expect(speak).not.toHaveBeenCalled();
-      const listener = player().addListener.mock.calls[player().addListener.mock.calls.length - 1][1];
-      // One error is retried (a fast scrub's abandoned load reports one too);
-      // a second gives up on the recording.
-      player().replace.mockImplementationOnce(() => listener({ error: 'HTTP 403', isLoaded: false }));
-      act(() => listener({ error: 'HTTP 403', isLoaded: false }));
-      expect(speak).not.toHaveBeenCalled();
-      act(() => jest.advanceTimersByTime(150)); // the retry reloads — and fails again
+      act(() => playerFor('https://cdn/a.mp3').__emit({ error: 'HTTP 403', isLoaded: false }));
       expect(speak).toHaveBeenCalledWith('Stand tall.', expect.any(Object));
       // The 4s recording would still be holding panel a; the 2-word TTS
       // estimate (~1.2s + 0.5s hold) has long since moved on.
@@ -621,8 +623,7 @@ describe('<PanelCarousel />', () => {
     });
 
     it('falls back to TTS when the player throws on play', () => {
-      const shared = require('expo-audio').createAudioPlayer();
-      shared.play.mockImplementationOnce(() => {
+      player().play.mockImplementationOnce(() => {
         throw new Error('bad source');
       });
       const { getByTestId } = render(
@@ -638,7 +639,7 @@ describe('<PanelCarousel />', () => {
       );
       layout(getByTestId('carousel'));
       unmount();
-      expect(player().remove).toHaveBeenCalled();
+      expect(player().remove).toHaveBeenCalledWith('https://cdn/a.mp3');
     });
   });
 

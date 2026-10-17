@@ -1,4 +1,5 @@
 import {
+  atEnd,
   initialPlayback,
   narrationIntent,
   panelAt,
@@ -68,7 +69,49 @@ describe('panelPlayback — the playback model', () => {
     expect(run([{ type: 'step', delta: 1 }])).toMatchObject({ elapsedMs: 4700, playing: true });
     expect(run([{ type: 'seek', ms: 8000 }, { type: 'step', delta: -1 }]).elapsedMs).toBe(4700);
     expect(run([{ type: 'step', delta: -1 }]).elapsedMs).toBe(0);
-    expect(run([{ type: 'seek', ms: 8000 }, { type: 'step', delta: 5 }]).elapsedMs).toBe(7000);
+    expect(run([{ type: 'seek', ms: 8000 }, { type: 'step', delta: 5 }]).elapsedMs).toBe(totalMs(B));
+  });
+
+  it('next on the last panel goes to the end, as playing through would — not back to its start', () => {
+    const end = run([{ type: 'seek', ms: 7500 }, { type: 'step', delta: 1 }]);
+    expect(end).toMatchObject({ elapsedMs: totalMs(B), playing: false });
+    expect(atEnd(end, B)).toBe(true);
+    expect(intent(end).kind).toBe('silent');
+    // Next again stays at the end; previous from the end is the last panel.
+    expect(reducePlayback(end, { type: 'step', delta: 1 }, B).elapsedMs).toBe(totalMs(B));
+    expect(reducePlayback(end, { type: 'step', delta: -1 }, B).elapsedMs).toBe(7000);
+    // Play from there replays from the start, like a finished video.
+    expect(reducePlayback(end, { type: 'play' }, B)).toMatchObject({ elapsedMs: 0, playing: true });
+  });
+
+  it('a recording that has not started yet holds the clock, like a video buffering', () => {
+    const s0 = initialPlayback(true);
+    const waiting = reducePlayback(s0, { type: 'awaitNarration', key: 'k1' }, B);
+    expect(waiting.awaiting).toBe('k1');
+    expect(reducePlayback(waiting, { type: 'tick', ms: 1000 }, B).elapsedMs).toBe(0);
+    // A start for another take does not release it; this take's does.
+    expect(reducePlayback(waiting, { type: 'narrationStarted', key: 'old' }, B).awaiting).toBe('k1');
+    const running = reducePlayback(waiting, { type: 'narrationStarted', key: 'k1' }, B);
+    expect(running.awaiting).toBeNull();
+    expect(reducePlayback(running, { type: 'tick', ms: 1000 }, B).elapsedMs).toBe(1000);
+  });
+
+  it('pausing, muting or any jump drops the hold; nothing waits while paused or scrubbing', () => {
+    const waiting = reducePlayback(initialPlayback(true), { type: 'awaitNarration', key: 'k' }, B);
+    for (const a of [
+      { type: 'pause' },
+      { type: 'setMuted', muted: true },
+      { type: 'seek', ms: 3000 },
+      { type: 'step', delta: 1 },
+      { type: 'restart' },
+      { type: 'scrubStart', ms: 100 },
+    ] as PlaybackAction[]) {
+      expect(reducePlayback(waiting, a, B).awaiting).toBeNull();
+    }
+    expect(reducePlayback(initialPlayback(false), { type: 'awaitNarration', key: 'k' }, B).awaiting).toBeNull();
+    const scrubbing = run([{ type: 'scrubStart', ms: 100 }]);
+    expect(reducePlayback(scrubbing, { type: 'awaitNarration', key: 'k' }, B).awaiting).toBeNull();
+    expect(reducePlayback(waiting, { type: 'awaitNarration', key: 'k' }, B)).toBe(waiting);
   });
 
   it('scrubbing holds playback while the finger is down and resumes after if it was playing', () => {
@@ -157,8 +200,8 @@ describe('narrationIntent — what the narrator should be doing', () => {
 // ── Driver ───────────────────────────────────────────────────────────────
 
 // A simulated narrator. startClip is the sequencer's contract: the clip plays
-// from startMs (ordering within a start is ClipSequencer's job, tested in
-// clipSequencer.test.ts). A clip that runs to its end parks there.
+// from startMs (buffering and command order are ClipBank's job, tested in
+// clipBank.test.ts). A clip that runs to its end parks there.
 function fakeBackend() {
   const log: string[] = [];
   const st = {
@@ -275,7 +318,11 @@ describe('randomized control sequences', () => {
       const history: PlaybackAction[] = [];
       d.apply(intent(s));
       for (let step = 0; step < 80; step++) {
-        const action = randomAction(r);
+        let action = randomAction(r);
+        // The component holds the clock for each recording until it starts.
+        const pick = r();
+        if (pick < 0.08) action = { type: 'awaitNarration', key: intent(s).key };
+        else if (pick < 0.14) action = { type: 'narrationStarted', key: s.awaiting ?? 'none' };
         history.push(action);
         const prev = s;
         s = reducePlayback(s, action, B);
@@ -315,6 +362,9 @@ describe('randomized control sequences', () => {
           if (!started || !started.endsWith('@0')) fail('natural advance did not start the clip at 0');
         }
         if (s.elapsedMs < 0 || s.elapsedMs > totalMs(B)) fail('clock out of range');
+        // 7. A held clock does not move, and nothing is held while stopped.
+        if (action.type === 'tick' && prev.awaiting !== null && s.elapsedMs !== prev.elapsedMs) fail('clock ran while held');
+        if (s.awaiting !== null && (!s.playing || s.scrubbing)) fail('held while paused or scrubbing');
       }
     }
   });

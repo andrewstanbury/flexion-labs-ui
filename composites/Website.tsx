@@ -157,6 +157,8 @@ export function ArtPlaceholder({
 // pill). Full-bleed: put it at the top of a screen with no side padding.
 export type HeroBannerProps = {
   title: string;
+  /** Words after the title in the website's pink highlight (its `.hl`). */
+  highlight?: string;
   subtitle?: string;
   eyebrow?: string;
   image?: ImageSourcePropType;
@@ -172,6 +174,7 @@ export type HeroBannerProps = {
 
 export function HeroBanner({
   title,
+  highlight,
   subtitle,
   eyebrow,
   image,
@@ -183,7 +186,14 @@ export function HeroBanner({
   style,
 }: HeroBannerProps) {
   const gradient = loadGradient();
-  const wash = ['rgba(20,30,23,0.82)', 'rgba(20,30,23,0.55)', 'rgba(20,30,23,0.25)'] as const;
+  // The website's hero shade: near-black sage behind the text, easing off
+  // toward the right so the photo shows through (CSS: linear-gradient(100deg,
+  // rgb(20 30 23 / 88%) 25%, rgb(20 30 23 / 35%) 75%)).
+  const wash = ['rgba(20,30,23,0.88)', 'rgba(20,30,23,0.35)'] as const;
+  // Fills the whole banner, status-bar area included. width/height rather than
+  // edge pinning alone: an <Image> pinned to four edges still drew at its
+  // intrinsic size on some platforms and left the header partly uncovered.
+  const fill = { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' } as const;
   return (
     <View
       style={[
@@ -198,26 +208,27 @@ export function HeroBanner({
       ]}
     >
       {image ? (
-        <Image source={image} resizeMode="cover" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
+        <Image source={image} resizeMode="cover" style={fill} />
       ) : (
         <ArtPlaceholder
           brief={imageBrief}
           tone="deep"
           bare
           rounded={false}
-          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+          style={fill}
         />
       )}
       {gradient ? (
         <gradient.LinearGradient
           pointerEvents="none"
           colors={wash}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+          locations={[0.25, 0.75]}
+          start={{ x: 0, y: 0.4 }}
+          end={{ x: 1, y: 0.6 }}
+          style={fill}
         />
       ) : (
-        <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: wash[1] }} />
+        <View pointerEvents="none" style={[fill, { backgroundColor: 'rgba(20,30,23,0.6)' }]} />
       )}
       <View style={{ paddingHorizontal: layout.screenX, paddingTop: topInset + space[5], paddingBottom: space[8], gap: space[3] }}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: space[3] }}>
@@ -244,6 +255,7 @@ export function HeroBanner({
         </View>
         <Text variant="display" style={{ color: colors.white, fontSize: 32, lineHeight: 37, letterSpacing: -0.8 }}>
           {title}
+          {highlight ? <Text variant="display" style={{ color: colors.blossom[400], fontSize: 32, lineHeight: 37, letterSpacing: -0.8 }}>{` ${highlight}`}</Text> : null}
         </Text>
         {subtitle ? (
           <Text variant="body" style={{ color: 'rgba(255,255,255,0.86)', fontSize: 16, lineHeight: 23 }}>
