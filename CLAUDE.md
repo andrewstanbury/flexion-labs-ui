@@ -34,7 +34,7 @@ Consequences:
 - App code must import from the package root (`@flexion-labs/ui`), never from a
   deep path inside the package.
 - Release history is in [`CHANGELOG.md`](./CHANGELOG.md) (keep it updated on every
-  version bump) plus the git tags. Current tags: v0.1.0 … v0.8.9.
+  version bump) plus the git tags. Current tags: v0.1.0 … v0.29.0.
 
 ### Current public export surface (the contract)
 
@@ -68,7 +68,8 @@ breaking release across both apps.
   `SyncStatusBar`, `SyncStatusShell`, `PanelCarousel` (+ `PanelStep` type —
   video-like player for an ordered set of static panel images; optional
   `narrate`/`steps` props add on-device TTS narration via `expo-speech`, a
-  peer dependency as of v0.21.0), `IconBubble`, `AppLockToggle` (+
+  peer dependency as of v0.21.0; steps with `audioUrl` play pre-generated
+  narration via `expo-audio`, a peer dependency as of v0.29.0), `IconBubble`, `AppLockToggle` (+
   `AppLockCopy` type — pairs with `createAppLockStore`; takes `enabled`/
   `setEnabled`/`copy` as props rather than owning a store or hardcoded
   strings, so it stays decoupled from any one app's i18n), `NavigationSection`

@@ -3,6 +3,37 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.29.0
+
+**Fix: a timed-out read is retried once** (`createApiTransport`). The backend
+database now pauses when idle and takes ~15s to resume, so the first request
+after a quiet spell can outlast `REQUEST_TIMEOUT_MS`. GET/HEAD requests that
+time out are retried once (`TIMEOUT_RETRIES_FOR_READS`); writes never are,
+since a timed-out write may already have been applied.
+
+
+**New: `PanelCarousel` plays pre-generated narration.**
+
+`PanelStep` gains optional `audioUrl` / `audioDurationMs`. When a step has a
+recording, the carousel plays it (expo-audio) instead of on-device TTS and holds
+the panel for the recording's measured length + buffer + hold, instead of the
+word-count estimate. Steps without audio narrate via expo-speech exactly as
+before. Pause / seek / mute / background / screen reader / unmount stop the
+recording through the same paths that stop TTS; playback speed scales the
+recording's rate the same way it scales the clock.
+
+If a recording fails (error status from the player, e.g. an expired signed
+URL, or the player throwing), that panel falls back to expo-speech and its
+timing falls back to the word-count estimate, rather than playing silence.
+
+`toPanelSteps(narration, narrationAudio?)` takes the API's optional
+`narrationAudio` (`({url, durationMs} | null)[]`, parallel to `narration`) and
+pairs it by original index, before blank lines are dropped. New exported type:
+`NarrationAudio`.
+
+**New peer dependency: `expo-audio`** (both apps must have it installed; the
+patient app already does).
+
 ## v0.28.0
 
 **New: `createApiTransport` — the HTTP layer both apps were duplicating.**

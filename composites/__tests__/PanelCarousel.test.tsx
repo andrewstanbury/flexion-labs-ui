@@ -1,10 +1,14 @@
 import { act, fireEvent, render, within } from '@testing-library/react-native';
 import { AccessibilityInfo } from 'react-native';
 import * as Speech from 'expo-speech';
+import { createAudioPlayer } from 'expo-audio';
 import { PanelCarousel } from '../PanelCarousel';
 
 const speak = Speech.speak as jest.Mock;
 const stop = Speech.stop as jest.Mock;
+const createPlayer = createAudioPlayer as jest.Mock;
+// The jest.setup.ts stub hands back one shared player object.
+const player = () => createPlayer.mock.results[createPlayer.mock.results.length - 1]?.value ?? createPlayer();
 
 // Screen-reader state defaults OFF for every test (via mockResolvedValue) —
 // individual tests override it to exercise the screen-reader-on behavior.
@@ -542,6 +546,94 @@ describe('<PanelCarousel />', () => {
       expect(speak.mock.calls.length).toBe(callsBeforeIncrement); // the increment itself didn't speak
     });
   });
+  describe('pre-generated narration — plays the recording instead of TTS', () => {
+    const audioSteps = [
+      { text: 'Stand tall.', holdSeconds: 0.5, audioUrl: 'https://cdn/a.mp3', audioDurationMs: 4000 },
+      { text: 'Rise up.', holdSeconds: 0.5 },
+    ];
+
+    it('plays the recording for a step that has one, and does not speak it', () => {
+      const { getByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg']} narrate intervalMs={500} steps={audioSteps} testID="carousel" />,
+      );
+      layout(getByTestId('carousel'));
+      expect(createPlayer).toHaveBeenCalledWith({ uri: 'https://cdn/a.mp3' });
+      expect(player().play).toHaveBeenCalled();
+      expect(speak).not.toHaveBeenCalled();
+    });
+
+    it("holds the panel for the recording's measured length, then falls back to TTS", () => {
+      const { getByTestId, queryByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg']} narrate intervalMs={500} steps={audioSteps} testID="carousel" />,
+      );
+      layout(getByTestId('carousel'));
+      // 4s recording + buffer + 0.5s hold — the 2-word text alone would have
+      // estimated ~1s and advanced by now.
+      act(() => jest.advanceTimersByTime(4000));
+      expect(isShowing(queryByTestId, 'b.jpg')).toBe(false);
+      advanceAndLoad(1500, queryByTestId, 'b.jpg');
+      expect(isShowing(queryByTestId, 'b.jpg')).toBe(true);
+      expect(speak).toHaveBeenCalledWith('Rise up.', expect.any(Object));
+    });
+
+    it('pauses the recording on pause, like TTS', () => {
+      const { getByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg']} narrate steps={audioSteps} testID="carousel" />,
+      );
+      layout(getByTestId('carousel'));
+      player().pause.mockClear();
+      fireEvent.press(getByTestId('carousel-tap-area'));
+      fireEvent.press(getByTestId('carousel-toggle'));
+      expect(player().pause).toHaveBeenCalled();
+    });
+
+    it('does not play the recording while muted', () => {
+      const { getByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg']} narrate steps={audioSteps} testID="carousel" />,
+      );
+      layout(getByTestId('carousel'));
+      fireEvent.press(getByTestId('carousel-tap-area'));
+      fireEvent.press(getByTestId('carousel-mute'));
+      expect(player().pause).toHaveBeenCalled();
+    });
+
+    it('falls back to TTS and the word-count hold when the recording reports an error', () => {
+      const { getByTestId, queryByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg']} narrate intervalMs={500} steps={audioSteps} testID="carousel" />,
+      );
+      layout(getByTestId('carousel'));
+      expect(speak).not.toHaveBeenCalled();
+      const listener = player().addListener.mock.calls[player().addListener.mock.calls.length - 1][1];
+      act(() => listener({ error: 'HTTP 403', isLoaded: false }));
+      expect(speak).toHaveBeenCalledWith('Stand tall.', expect.any(Object));
+      // The 4s recording would still be holding panel a; the 2-word TTS
+      // estimate (~1.2s + 0.5s hold) has long since moved on.
+      advanceAndLoad(2500, queryByTestId, 'b.jpg');
+      expect(isShowing(queryByTestId, 'b.jpg')).toBe(true);
+    });
+
+    it('falls back to TTS when the player throws on play', () => {
+      const shared = require('expo-audio').createAudioPlayer();
+      shared.play.mockImplementationOnce(() => {
+        throw new Error('bad source');
+      });
+      const { getByTestId } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg']} narrate steps={audioSteps} testID="carousel" />,
+      );
+      layout(getByTestId('carousel'));
+      expect(speak).toHaveBeenCalledWith('Stand tall.', expect.any(Object));
+    });
+
+    it('releases the native player on unmount', () => {
+      const { getByTestId, unmount } = render(
+        <PanelCarousel uris={['a.jpg', 'b.jpg']} narrate steps={audioSteps} testID="carousel" />,
+      );
+      layout(getByTestId('carousel'));
+      unmount();
+      expect(player().remove).toHaveBeenCalled();
+    });
+  });
+
   describe('player chrome — visible, legible, and in sync with the narrator', () => {
     // The regression this guards: the icons used the `inverse` colour role,
     // which resolves to theme.surface — a DARK colour in dark mode — on a

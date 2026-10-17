@@ -43,3 +43,21 @@ jest.mock('nativewind', () => ({
   useColorScheme: () => ({ colorScheme: 'light', setColorScheme: jest.fn() }),
   cssInterop: () => undefined,
 }));
+
+// No native audio engine under jest — PanelCarousel's pre-generated narration
+// is tested against this shared player stub (play/pause/replace calls), not
+// real audio. One player object so tests can inspect it via createAudioPlayer.
+jest.mock('expo-audio', () => {
+  const player = {
+    play: jest.fn(),
+    pause: jest.fn(),
+    replace: jest.fn(),
+    remove: jest.fn(),
+    setPlaybackRate: jest.fn(),
+    addListener: jest.fn(() => ({ remove: jest.fn() })),
+  };
+  return {
+    createAudioPlayer: jest.fn(() => player),
+    setAudioModeAsync: jest.fn().mockResolvedValue(undefined),
+  };
+});
