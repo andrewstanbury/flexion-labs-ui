@@ -18,6 +18,39 @@ function fileRef(exerciseId: string, file: MediaFile): File | null {
   return new File(CACHE_DIR, `${exerciseId}-${file}.${ext}`);
 }
 
+// Each cached file carries a sidecar (`<name>.src`) naming the object it was
+// downloaded from: the signed URL without its signature. The server can start
+// serving different content under the same exerciseId/file — an approved
+// exercise's thumbnail becomes its first generated panel — and without the
+// sidecar a phone that had cached the original kept showing it forever,
+// because a cache hit never asked the server again (v0.40.0). A file with no
+// sidecar predates this and counts as unknown, so it is refreshed once.
+function sourceRef(exerciseId: string, file: MediaFile): File | null {
+  if (WEB || !CACHE_DIR) return null;
+  return new File(CACHE_DIR, `${exerciseId}-${file}.${ext(file)}.src`);
+}
+
+/** The object a signed URL points at, without the signature that changes every signing. */
+export function mediaSourceOf(signedUrl: string): string {
+  return signedUrl.split('?')[0];
+}
+
+/** Where the cached file came from (`mediaSourceOf` of its URL), or null when unknown. */
+export function cachedSource(exerciseId: string, file: MediaFile): string | null {
+  try {
+    const ref = sourceRef(exerciseId, file);
+    if (!ref || !ref.exists) return null;
+    return ref.textSync().trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Whether the cached file is the one `signedUrl` points at. */
+export function isCachedFrom(exerciseId: string, file: MediaFile, signedUrl: string): boolean {
+  return isFileCached(exerciseId, file) && cachedSource(exerciseId, file) === mediaSourceOf(signedUrl);
+}
+
 export function localPath(exerciseId: string, file: MediaFile): string | null {
   return fileRef(exerciseId, file)?.uri ?? null;
 }
@@ -45,7 +78,7 @@ export function downloadToCache(
   signedUrl: string,
 ): Promise<string | null> {
   if (WEB || !CACHE_DIR) return Promise.resolve(null);
-  const key = `${exerciseId}-${file}`;
+  const key = `${exerciseId}-${file}:${mediaSourceOf(signedUrl)}`;
   const existing = inFlight.get(key);
   if (existing) return existing;
   const p = doDownload(exerciseId, file, signedUrl).finally(() => inFlight.delete(key));
@@ -68,7 +101,7 @@ async function doDownload(
   // and serve as an unplayable video.
   const tmp = new File(CACHE_DIR, `${exerciseId}-${file}.${ext(file)}.part`);
   try {
-    if (dest.exists) return dest.uri;
+    if (dest.exists && cachedSource(exerciseId, file) === mediaSourceOf(signedUrl)) return dest.uri;
     if (!CACHE_DIR.exists) CACHE_DIR.create({ intermediates: true, idempotent: true });
     // Clear any stale partial left by a previously interrupted attempt.
     try {
@@ -83,6 +116,11 @@ async function doDownload(
       // best-effort
     }
     tmp.move(dest);
+    try {
+      sourceRef(exerciseId, file)?.write(mediaSourceOf(signedUrl));
+    } catch {
+      // Best-effort: without it the file is just refreshed once more later.
+    }
     return dest.uri;
   } catch {
     try {

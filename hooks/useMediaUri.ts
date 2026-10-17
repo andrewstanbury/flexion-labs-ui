@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getFetchSignedUrl } from './mediaApi';
-import { localPath, isFileCached, downloadToCache } from './mediaCache';
+import { localPath, isFileCached, isCachedFrom, downloadToCache } from './mediaCache';
 import type { MediaFile } from './mediaFiles';
 
 export type { MediaFile };
@@ -40,6 +40,13 @@ const SIGNED_URL_GC = 50 * 60 * 1000;
  * RESETS the URI to null while re-resolving when exerciseId/file changes, so a
  * reused player/image never momentarily shows the PREVIOUS exercise's media —
  * the practitioner's copy lacked this and could flash stale media.
+ *
+ * v0.40.0: a cache hit still asks the server (when online) which object it
+ * serves now, and re-downloads when that changed. Before, a cached file was
+ * final: an exercise viewed before its generated panels were approved kept its
+ * original thumbnail on that phone indefinitely. The cached file shows at once
+ * and offline, exactly as before; it is only replaced when the server
+ * disagrees.
  */
 export function useMediaUri(
   exerciseId: string,
@@ -72,7 +79,8 @@ export function useMediaUri(
   const { data: signedUrlData, isError: signedUrlFailed } = useQuery({
     queryKey: ['signed-url', exerciseId, file],
     queryFn: () => getFetchSignedUrl()(exerciseId, file),
-    enabled: !!exerciseId && localExists === false,
+    // Asked even on a cache hit, to learn whether the cached copy is current.
+    enabled: !!exerciseId && localExists !== null,
     staleTime: SIGNED_URL_STALE,
     gcTime: SIGNED_URL_GC,
     retry: 1,
@@ -80,12 +88,18 @@ export function useMediaUri(
   const signedUrl = signedUrlData?.signedUrl ?? null;
 
   useEffect(() => {
-    if (localExists !== false || !signedUrl) return;
+    if (localExists === null || !signedUrl) return;
+    // Cached and current: nothing to do.
+    if (localExists && isCachedFrom(exerciseId, file, signedUrl)) return;
     let cancelled = false;
-    setUri(signedUrl);
+    // Not cached: show the remote file while it downloads. Cached but stale:
+    // keep showing the cached one until the replacement has landed.
+    if (!localExists) setUri(signedUrl);
     downloadToCache(exerciseId, file, signedUrl)
       .then((local) => {
-        if (!cancelled && local) setUri(local);
+        // A cache-busting suffix: the replacement lands at the same path, and
+        // an image component would otherwise keep the old bitmap for that URI.
+        if (!cancelled && local) setUri(localExists ? `${local}?v=${Date.now()}` : local);
       })
       .catch(() => {});
     return () => {
