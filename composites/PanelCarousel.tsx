@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   Animated,
@@ -17,7 +17,16 @@ import { Pressable } from '../primitives/Pressable';
 // scaling and variant ramp as every other label in both apps.
 import { Text } from '../primitives/Text';
 import { useTheme } from '../UIProvider';
-import { NARRATION_RATE, narrationMs } from '../lib/panelTiming';
+import { narrationMs } from '../lib/panelTiming';
+import {
+  initialPlayback,
+  narrationIntent,
+  panelAt,
+  reducePlayback,
+  type PlaybackAction,
+  type PlaybackState,
+} from '../lib/panelPlayback';
+import { NarrationDriver, type NarrationBackend } from '../lib/narrationDriver';
 
 // expo-audio is loaded on first use, never at import time. index.ts re-exports
 // this file, so a top-level import would load the native module for every
@@ -84,8 +93,8 @@ const SCRIM_BACKGROUND = 'rgba(0,0,0,0.45)';
 // Playback speeds, cycled by tapping the speed chip. 1 first so the initial
 // tap slows down rather than speeding up — the common reason to touch this on
 // an exercise you are trying to follow.
-const SPEEDS = [1, 0.75, 1.5] as const;
-type Speed = (typeof SPEEDS)[number];
+// Playback speeds (1x, 0.75x, 1.5x) live with the playback model in
+// lib/panelPlayback.ts; tapping the speed chip cycles them.
 
 // mm:ss for the elapsed/total readout. Panel sequences are seconds-to-minutes,
 // never hours, so no hour component.
@@ -99,6 +108,8 @@ function formatClock(ms: number): string {
 // The scrubber's draggable dot. Big enough to see against a busy panel and to
 // read as grabbable, without covering the 3px bar it rides on.
 const HANDLE_SIZE = 14;
+// Horizontal padding of the timeline's touch area; the bar itself sits inside it.
+const TIMELINE_PADDING = 12;
 
 // Secondary chrome buttons (skip, restart, mute, speed) — one shape so they
 // read as a set rather than four slightly different circles.
@@ -127,17 +138,6 @@ export type PanelStep = {
 };
 
 type ResolvedStep = { text: string; holdSeconds: number; audioUrl?: string; audioDurationMs?: number };
-
-// Which panel should be showing at a given point in elapsed playback time.
-// Panel i occupies [boundaries[i], boundaries[i+1]) — the last panel keeps
-// its own full dwell time before playback counts as "finished" (elapsedMs
-// reaching boundaries[boundaries.length - 1], the total).
-function indexForElapsed(elapsedMs: number, boundaries: number[]): number {
-  for (let i = 0; i < boundaries.length - 1; i++) {
-    if (elapsedMs < boundaries[i + 1]) return i;
-  }
-  return Math.max(boundaries.length - 2, 0);
-}
 
 // Plays an ordered set of static images like a video would: a play/pause
 // button that auto-hides during playback and reappears on tap, plus a
@@ -265,8 +265,25 @@ export function PanelCarousel({
   }, [uris.length, resolvedSteps, narrate, intervalMs]);
   const totalMs = boundaries[boundaries.length - 1] || intervalMs;
 
-  const [elapsedMs, setElapsedMs] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(autoPlay && canPlay);
+  // ── Playback ────────────────────────────────────────────────────────────
+  // The whole playback model — clock, play/pause, seek, skip, scrub, speed,
+  // mute — is the pure reducer in lib/panelPlayback.ts. This component only
+  // feeds it actions and ticks, renders its state, and lets NarrationDriver
+  // make the narrator match narrationIntent(). Nothing else may start or stop
+  // narration; that rule is what keeps the narrator in sync (see the tests in
+  // __tests__/panelPlayback.test.ts, including randomized control sequences).
+  const boundariesRef = useRef(boundaries);
+  boundariesRef.current = boundaries;
+  const [pb, dispatch] = useReducer(
+    (s: PlaybackState, a: PlaybackAction) => reducePlayback(s, a, boundariesRef.current),
+    autoPlay && canPlay,
+    initialPlayback,
+  );
+  const elapsedMs = Math.min(pb.elapsedMs, totalMs);
+  const isPlaying = pb.playing;
+  const speed = pb.speed;
+  const muted = pb.muted;
+
   const [controlsVisible, setControlsVisible] = useState(!(autoPlay && canPlay));
 
   // Two-slot double buffer for the crossfade. Whichever slot is "active" is
@@ -285,94 +302,16 @@ export function PanelCarousel({
   const shownIndexRef = useRef(0);
   const pendingRef = useRef<{ slot: Slot; index: number } | null>(null);
   const mountedRef = useRef(true);
-  // One expo-audio player per mount, created lazily the first time a step
-  // with pre-generated audio is narrated (most call sites never need one).
-  // replace() swaps its source per panel rather than creating a player per
-  // panel — players hold native resources until remove().
-  const audioPlayerRef = useRef<AudioPlayer | null>(null);
-  const audioModeSetRef = useRef(false);
-  // A resume/scrub offset for a clip that was still loading when it was
-  // requested — applied on its first "loaded" status.
-  const pendingSeekRef = useRef<{ url: string; seconds: number } | null>(null);
-  // URL the player is currently playing, so a late error status for a
-  // recording we already moved past is not misattributed to the current one.
-  const currentAudioUrlRef = useRef<string | null>(null);
-  const audioSubscriptionRef = useRef<{ remove: () => void } | null>(null);
-  // Stops BOTH narration channels. Every place that used to call Speech.stop()
-  // goes through here, so pause/seek/mute/background/screen-reader/unmount cut
-  // off recorded audio exactly as they always cut off TTS.
-  const stopNarration = () => {
-    Speech.stop();
-    audioPlayerRef.current?.pause();
-  };
-  // Marks a recording as unusable and re-narrates the current panel. Clearing
-  // narratedIndexRef makes the narration effect run again; by then the step
-  // has been re-resolved without audio, so it speaks via TTS.
-  const fallBackToTts = (url: string) => {
-    if (!mountedRef.current) return;
-    audioPlayerRef.current?.pause();
-    currentAudioUrlRef.current = null;
-    narratedIndexRef.current = -1;
-    setFailedAudioUrls((prev) => (prev.includes(url) ? prev : [...prev, url]));
-  };
-  // playsInSilentMode mirrors what useApplicationAudioSession:false buys
-  // expo-speech: without it the iPhone ring/silent switch mutes the narrator.
-  // Set once per mount.
-  const ensureAudioMode = (audio: ExpoAudio) => {
-    if (audioModeSetRef.current) return;
-    audioModeSetRef.current = true;
-    audio.setAudioModeAsync({ playsInSilentMode: true }).catch(() => {
-      // Audio session unavailable — playback still attempts.
-    });
-  };
-  const ensurePlayer = (audio: ExpoAudio): AudioPlayer => {
-    if (audioPlayerRef.current) return audioPlayerRef.current;
-    const player = audio.createAudioPlayer(null);
-    audioPlayerRef.current = player;
-    // Load/playback failures (expired signed URL, network, decoder) arrive
-    // asynchronously as an error status, not a thrown error.
-    audioSubscriptionRef.current = player.addListener('playbackStatusUpdate', (status) => {
-      const current = currentAudioUrlRef.current;
-      if (status.error && current) {
-        fallBackToTts(current);
-        return;
-      }
-      const pending = pendingSeekRef.current;
-      if (pending && status.isLoaded && pending.url === current) {
-        pendingSeekRef.current = null;
-        Promise.resolve(player.seekTo(pending.seconds)).catch(() => {});
-      }
-    });
-    return player;
-  };
-  useEffect(
-    () => () => {
-      mountedRef.current = false;
-      Speech.stop();
-      audioSubscriptionRef.current?.remove();
-      audioSubscriptionRef.current = null;
-      audioPlayerRef.current?.remove();
-      audioPlayerRef.current = null;
-    },
-    [],
-  );
 
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const barWidthRef = useRef(0);
   const dragStartXRef = useRef(0);
-  const wasPlayingBeforeScrubRef = useRef(false);
   // Set right before a replay-triggered play starts, consumed by the
   // auto-hide effect below to use REPLAY_AUTO_HIDE_MS instead of the normal
   // CONTROLS_AUTO_HIDE_MS — after tapping replay the viewer just interacted
   // with the button, so there's no need to keep it up as long as after a
   // tap-to-reveal.
   const fastHideRef = useRef(false);
-  const [muted, setMuted] = useState(false);
-  // Index whose narration has already been spoken (or -1). Compared against
-  // the current index each tick so a given panel is only narrated once per
-  // visit, not on every render while sitting on it.
-  const narratedIndexRef = useRef(-1);
-  const sequenceResetPendingRef = useRef(false);
   // Best available voice identifier, looked up once per mount (only when
   // narrating). expo-speech's default voice is the flattest one available on
   // most devices; an "Enhanced"-quality English voice, where the OS has one
@@ -421,6 +360,127 @@ export function PanelCarousel({
       });
   }, [narrate]);
 
+  // ── Narration plumbing: expo-speech + one lazily created expo-audio player ──
+  const audioPlayerRef = useRef<AudioPlayer | null>(null);
+  const audioSubscriptionRef = useRef<{ remove: () => void } | null>(null);
+  const clipUrlRef = useRef<string | null>(null);
+  const audioModeSetRef = useRef(false);
+  // playsInSilentMode mirrors what useApplicationAudioSession:false buys
+  // expo-speech: without it the iPhone ring/silent switch mutes the narrator.
+  // Set as soon as there are recordings (not when the first one starts — the
+  // mode change is asynchronous, and the first clip used to start muted).
+  const ensureAudioMode = (audio: ExpoAudio) => {
+    if (audioModeSetRef.current) return;
+    audioModeSetRef.current = true;
+    audio.setAudioModeAsync({ playsInSilentMode: true }).catch(() => {
+      // Audio session unavailable — playback still attempts.
+    });
+  };
+  const failClip = (url: string | null) => {
+    if (!url || !mountedRef.current) return;
+    driver.clipFailed(url);
+    // Resolved without its audio, the step narrates via speech and its timing
+    // falls back to the word-count estimate (the timeline retimes below).
+    setFailedAudioUrls((prev) => (prev.includes(url) ? prev : [...prev, url]));
+  };
+  const ensurePlayer = (): AudioPlayer => {
+    if (audioPlayerRef.current) return audioPlayerRef.current;
+    const audio = loadExpoAudio();
+    if (!audio) throw new Error('expo-audio unavailable');
+    ensureAudioMode(audio);
+    // Created empty: every clip, the first included, arrives via replace().
+    const player = audio.createAudioPlayer(null);
+    audioPlayerRef.current = player;
+    // Load/playback failures (expired signed URL, network, decoder) arrive
+    // asynchronously as an error status, not a thrown error.
+    audioSubscriptionRef.current = player.addListener('playbackStatusUpdate', (status) => {
+      if (status.error) failClip(clipUrlRef.current);
+      else if (status.isLoaded && clipUrlRef.current) driver.clipLoaded(clipUrlRef.current);
+    });
+    return player;
+  };
+  const driverRef = useRef<NarrationDriver | null>(null);
+  if (!driverRef.current) {
+    const backend: NarrationBackend = {
+      speak: (text, rate) =>
+        Speech.speak(text, {
+          rate,
+          voice: preferredVoiceRef.current,
+          // iOS: without this, speech rides whatever audio session the REST
+          // of the app happens to have active — silently inaudible wherever
+          // nothing else has activated one. false makes expo-speech manage
+          // its own session, so narration is audible on its own.
+          useApplicationAudioSession: false,
+        }),
+      stopSpeech: () => Speech.stop(),
+      loadClip: (url) => {
+        clipUrlRef.current = url;
+        ensurePlayer().replace({ uri: url });
+      },
+      seekClip: (seconds) => {
+        const p = audioPlayerRef.current;
+        if (p) Promise.resolve(p.seekTo(seconds)).catch(() => {});
+      },
+      setClipRate: (rate) => audioPlayerRef.current?.setPlaybackRate(rate),
+      playClip: () => audioPlayerRef.current?.play(),
+      pauseClip: () => audioPlayerRef.current?.pause(),
+    };
+    driverRef.current = new NarrationDriver(backend);
+  }
+  const driver = driverRef.current;
+
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+      driverRef.current?.reset();
+      audioSubscriptionRef.current?.remove();
+      audioSubscriptionRef.current = null;
+      audioPlayerRef.current?.remove();
+      audioPlayerRef.current = null;
+    },
+    [],
+  );
+
+  // Prepare the audio session before the viewer presses play.
+  const hasRecordings = !!narrate && !!resolvedSteps?.some((st) => st.audioUrl);
+  useEffect(() => {
+    if (!hasRecordings) return;
+    const audio = loadExpoAudio();
+    if (audio) ensureAudioMode(audio);
+  }, [hasRecordings]);
+
+  // Narration is allowed while visible and no screen reader is speaking.
+  const narrationEnabled = narrate && active && !screenReaderEnabled;
+  const intent = narrationIntent(pb, boundaries, narrate ? resolvedSteps : null, narrationEnabled);
+  useEffect(() => {
+    try {
+      driver.apply(intent);
+    } catch {
+      // The native player refused the source outright — speak it instead.
+      if (intent.kind === 'clip') failClip(intent.url);
+    }
+    // The key identifies the take; the rest of the intent is fixed for it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [intent.key]);
+
+  // Coming back into view (or a screen reader turning off) picks narration up
+  // at the current point rather than where it was suppressed.
+  const enabledRef = useRef(narrationEnabled);
+  useEffect(() => {
+    if (narrationEnabled && !enabledRef.current) dispatch({ type: 'resync' });
+    enabledRef.current = narrationEnabled;
+  }, [narrationEnabled]);
+
+  // A recording that failed changes the timeline (its panel falls back to the
+  // speech estimate): re-anchor the playhead against the new durations.
+  const boundariesKey = boundaries.join(',');
+  const boundariesKeyRef = useRef(boundariesKey);
+  useEffect(() => {
+    if (boundariesKeyRef.current === boundariesKey) return;
+    boundariesKeyRef.current = boundariesKey;
+    dispatch({ type: 'retime' });
+  }, [boundariesKey]);
+
   // Controls fade in/out rather than popping — same as native video chrome.
   // Kept mounted throughout (see the render below) so there's something to
   // animate; pointerEvents flips to 'none' immediately on hide, ahead of the
@@ -440,10 +500,16 @@ export function PanelCarousel({
   };
 
   // Reset everything when the sequence itself changes (a different exercise).
+  const firstSequenceRef = useRef(true);
   useEffect(() => {
-    setElapsedMs(0);
     const startPlaying = autoPlay && canPlay;
-    setIsPlaying(startPlaying);
+    if (!firstSequenceRef.current) {
+      driver.reset();
+      clipUrlRef.current = null;
+      setFailedAudioUrls([]);
+      dispatch({ type: 'reset', autoPlay: startPlaying });
+    }
+    firstSequenceRef.current = false;
     setControlsVisible(!startPlaying);
     controlsOpacity.setValue(startPlaying ? 0 : 1); // snap, don't fade, on a fresh sequence
     opacity0.setValue(1);
@@ -452,110 +518,50 @@ export function PanelCarousel({
     shownIndexRef.current = 0;
     pendingRef.current = null;
     fastHideRef.current = false;
-    narratedIndexRef.current = -1;
-    stopNarration();
-    currentAudioUrlRef.current = null;
-    // The clock reset above lands on the NEXT render; until then elapsedMs
-    // still holds the previous exercise's position, and narrating now would
-    // start the new first clip partway through.
-    sequenceResetPendingRef.current = true;
-    setFailedAudioUrls([]);
     setSlotUris([uris[0] ?? null, null]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uris.join('|')]);
 
-  // Recordings that arrive after playback started (the exercise's narration
-  // audio loads after its panels) take over the current panel instead of
-  // letting on-device speech finish it. Skips the first render: there is
-  // nothing to take over from yet.
-  const audioSignature = (steps ?? []).map((st) => st?.audioUrl ?? '').join('|');
-  const audioSignatureRef = useRef(audioSignature);
+  // Playback clock. One interval while playing; the reducer owns the time, so
+  // a seek can never be overwritten by a tick computed from a stale position.
+  const ticking = isPlaying && active && canPlay && !pb.scrubbing;
   useEffect(() => {
-    if (audioSignatureRef.current === audioSignature) return;
-    audioSignatureRef.current = audioSignature;
-    narratedIndexRef.current = -1;
-    stopNarration();
-  }, [audioSignature]);
+    if (!ticking) return;
+    const id = setInterval(() => dispatch({ type: 'tick', ms: TICK_MS }), TICK_MS);
+    return () => clearInterval(id);
+  }, [ticking]);
 
-  // Prepare the audio session as soon as there are recordings to play, not
-  // when the first one starts: the mode change is asynchronous, and a clip
-  // started before it lands can play muted under the iPhone silent switch —
-  // which is how the first panel ended up silent while later ones worked.
+  const atEnd = elapsedMs >= totalMs;
+  // Finished: show the replay button, as a video does.
   useEffect(() => {
-    if (!narrate || !audioSignature.replace(/\|/g, '')) return;
-    const audio = loadExpoAudio();
-    if (audio) ensureAudioMode(audio);
-  }, [narrate, audioSignature]);
+    if (atEnd && !isPlaying) setControlsVisible(true);
+  }, [atEnd, isPlaying]);
 
-  // Playback clock — ticks while playing; the panel to show is derived from
-  // elapsed time (below). Self-schedules each tick's own setTimeout inside
-  // the previous tick's callback, rather than depending on elapsedMs being
-  // in this effect's deps to re-run and reschedule — chaining through a
-  // React re-render between every 100ms tick isn't guaranteed to keep pace
-  // (state updates can batch), which drops ticks. A ref mirrors elapsedMs so
-  // the loop always knows the true current value even mid-batch.
-  const elapsedRef = useRef(elapsedMs);
-  useEffect(() => {
-    elapsedRef.current = elapsedMs;
-  }, [elapsedMs]);
-
-  // Speed scales the CLOCK, not the boundaries. Rescaling `boundaries`/`totalMs`
-  // would invalidate every seek position and the progress fraction the moment
-  // speed changed; advancing elapsed time faster leaves all of that math in
-  // one canonical "natural time" frame. The TTS rate is multiplied by the same
-  // factor below, so the narrator and the panels stay locked together — change
-  // one without the other and the voice drifts out of sync with the images.
-  const [speed, setSpeed] = useState<Speed>(1);
-  const speedRef = useRef<Speed>(1);
-  useEffect(() => {
-    speedRef.current = speed;
-  }, [speed]);
-  // Re-speak the current panel at the new rate rather than letting the
-  // in-flight utterance finish at the old one.
-  // Side effects stay OUT of the updater: React may defer or double-invoke a
-  // state updater, so a Speech.stop() in there is not ordered against the
-  // narration effect that re-speaks at the new rate — the utterance kept
-  // playing at the old speed while the panels ran at the new one, which is
-  // precisely the desync this control has to avoid.
-  const cycleSpeed = () => {
-    narratedIndexRef.current = -1;
-    stopNarration();
-    setSpeed((prev) => SPEEDS[(SPEEDS.indexOf(prev) + 1) % SPEEDS.length]);
-  };
-
-  useEffect(() => {
-    if (!isPlaying || !active || !canPlay) return;
-    if (elapsedRef.current >= totalMs) {
-      setIsPlaying(false);
-      setControlsVisible(true);
-      return;
-    }
-    let cancelled = false;
-    let timerId: ReturnType<typeof setTimeout>;
-    const tick = () => {
-      if (cancelled) return;
-      elapsedRef.current = Math.min(elapsedRef.current + TICK_MS * speedRef.current, totalMs);
-      setElapsedMs(elapsedRef.current);
-      if (elapsedRef.current >= totalMs) {
-        setIsPlaying(false);
-        setControlsVisible(true);
-        return;
-      }
-      timerId = setTimeout(tick, TICK_MS);
-    };
-    timerId = setTimeout(tick, TICK_MS);
-    return () => {
-      cancelled = true;
-      clearTimeout(timerId);
-    };
-  }, [isPlaying, active, canPlay, totalMs]);
-
-  // Starts loading whichever panel the clock says should be showing next
-  // (into the non-active slot); handleSlotLoad below starts the actual fade
-  // once it's decoded.
+  // A discontinuity (seek, skip, scrub, restart, reset) is an instant cut to
+  // the landing panel — scrubbing a video doesn't dissolve between frames.
+  // Declared before the crossfade effect so a cut wins over a fade.
   useEffect(() => {
     if (!canPlay) return;
-    const targetIndex = indexForElapsed(elapsedMs, boundaries);
+    const target = panelAt(elapsedMs, boundaries);
+    if (target === shownIndexRef.current) return;
+    pendingRef.current = null;
+    const slot = activeSlotRef.current;
+    setSlotUris((prev) => {
+      const next: [string | null, string | null] = [prev[0], prev[1]];
+      next[slot] = uris[target];
+      return next;
+    });
+    opacities[slot].setValue(1);
+    opacities[slot === 0 ? 1 : 0].setValue(0);
+    shownIndexRef.current = target;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pb.generation]);
+
+  // A natural advance crossfades: load the next panel into the other slot;
+  // handleSlotLoad starts the fade once it's decoded.
+  useEffect(() => {
+    if (!canPlay) return;
+    const targetIndex = panelAt(elapsedMs, boundaries);
     if (targetIndex === shownIndexRef.current || pendingRef.current?.index === targetIndex) return;
     const nextSlot: Slot = activeSlotRef.current === 0 ? 1 : 0;
     pendingRef.current = { slot: nextSlot, index: targetIndex };
@@ -565,109 +571,6 @@ export function PanelCarousel({
       return next;
     });
   }, [elapsedMs, boundaries, uris, canPlay]);
-
-  // Narrates the current panel's step text once per visit, while actually
-  // playing/active/unmuted. Duration pacing (boundaries, above) is precomputed
-  // rather than driven by this, so a slower-than-estimated read never gets cut
-  // off mid-panel — it just means the estimate undershot for that one step.
-  useEffect(() => {
-    if (!narrate || !resolvedSteps || !isPlaying || !active || muted || screenReaderEnabled) return;
-    if (sequenceResetPendingRef.current) {
-      if (elapsedMs !== 0) return; // wait for the new exercise's clock to reset
-      sequenceResetPendingRef.current = false;
-    }
-    const idx = indexForElapsed(elapsedMs, boundaries);
-    if (narratedIndexRef.current === idx) return;
-    // -1 means narration was reset: a start, resume, seek, restart or a new
-    // source. A natural advance arrives with the previous panel's index.
-    const fromReset = narratedIndexRef.current === -1;
-    narratedIndexRef.current = idx;
-    stopNarration();
-    const step = resolvedSteps[idx];
-    // How far into this panel playback is when narration (re)starts after a
-    // reset — after a resume or a scrub the narrator picks up partway, the way
-    // a video's soundtrack does, rather than starting the line over or staying
-    // silent. A natural advance always starts the line at 0: the clock ticks
-    // in steps and can land a little past the boundary, which must not clip
-    // or skip the line.
-    const offsetMs = fromReset ? Math.max(0, elapsedMs - (boundaries[idx] ?? 0)) : 0;
-    const audio = step.audioUrl ? loadExpoAudio() : null;
-    if (step.audioUrl && audio) {
-      // Normally already set by the eager effect above, before the viewer
-      // pressed play; this is the fallback for a mount that skipped it.
-      ensureAudioMode(audio);
-      const url = step.audioUrl;
-      // Already past the end of this panel's recording: nothing left to say
-      // until the next panel, same as scrubbing a video past a line.
-      if (step.audioDurationMs !== undefined && offsetMs >= step.audioDurationMs) return;
-      try {
-        // Every clip — the first included — goes through the same path: one
-        // player created empty, then replace(). The first clip used to be
-        // loaded at creation instead, a separate path that played inconsistently.
-        const player = ensurePlayer(audio);
-        const sameSource = currentAudioUrlRef.current === url;
-        if (!sameSource) player.replace({ uri: url });
-        currentAudioUrlRef.current = url;
-        const seconds = offsetMs / 1000;
-        // A clip already loaded is always rewound/positioned explicitly: one
-        // that played to its end stays parked there, which is why restarting
-        // used to leave the narrator silent. A freshly loaded clip starts at 0
-        // on its own; it only needs a seek for a resume/scrub offset, which is
-        // also re-applied once the clip has loaded (a seek on a still-loading
-        // source can be dropped).
-        if (sameSource || seconds > 0) {
-          Promise.resolve(player.seekTo(seconds)).catch(() => {
-            // Seek before load unsupported on some platforms; the pending
-            // seek below covers it.
-          });
-        }
-        pendingSeekRef.current = !sameSource && seconds > 0 ? { url, seconds } : null;
-        // Same factor the clock uses, so the recording stays locked to the
-        // panels at 0.75x/1.5x. NOT multiplied by NARRATION_RATE: that slows
-        // the TTS engine's clipped default pace, while the recording is already
-        // at its natural pace and its duration was measured as-is.
-        player.setPlaybackRate(speed);
-        player.play();
-      } catch {
-        // Native player refused the source outright — same fallback.
-        fallBackToTts(url);
-      }
-      return;
-    }
-    // On-device speech cannot start mid-sentence. Re-speak the line when
-    // resuming early in it; past the halfway mark, stay quiet until the next
-    // panel rather than run the line over into the next panel's time.
-    if (offsetMs > 0 && offsetMs >= narrationMs(step) / 2) return;
-    Speech.speak(step.text, {
-      // Same factor the clock uses, so the narrator finishes a panel's text in
-      // the same proportion of that panel's (now shorter/longer) dwell time.
-      rate: NARRATION_RATE * speed,
-      voice: preferredVoiceRef.current,
-      // iOS: without this, speech rides whatever audio session the REST of
-      // the app happens to have active — silently inaudible wherever nothing
-      // else (e.g. an expo-video player, even a muted one) has activated
-      // one. false makes expo-speech create and manage its own dedicated
-      // session, so narration is audible on its own, not just when a
-      // PanelCarousel happens to share a screen with a video player.
-      useApplicationAudioSession: false,
-    });
-    // ensurePlayer/ensureAudioMode/stopNarration are per-render helpers over
-    // refs; listing them would re-run narration on every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [elapsedMs, narrate, resolvedSteps, isPlaying, active, muted, screenReaderEnabled, boundaries, speed]);
-
-  // Cuts narration off immediately on pause/background/mute/screen-reader,
-  // rather than waiting for the utterance to finish on its own.
-  useEffect(() => {
-    if (!narrate) return;
-    if (!isPlaying || !active || muted || screenReaderEnabled) {
-      stopNarration();
-      // Resuming should pick the narrator back up at the current point of
-      // this panel (see offsetMs above), not leave it silent for the rest of
-      // the panel because it was "already narrated".
-      narratedIndexRef.current = -1;
-    }
-  },[narrate, isPlaying, active, muted, screenReaderEnabled]);
 
   const handleSlotLoad = (slot: Slot) => {
     const pending = pendingRef.current;
@@ -698,50 +601,66 @@ export function PanelCarousel({
     };
   }, [controlsVisible, isPlaying, screenReaderEnabled]);
 
+  // Scrubbing. The PanResponder is created ONCE and calls through a ref to
+  // the latest handlers: one rebuilt every render (and the timeline re-renders
+  // on every move) lost its gesture state mid-drag, so the playhead jumped.
+  const timelineX = (x: number) => {
+    const inner = barWidthRef.current - TIMELINE_PADDING * 2;
+    if (inner <= 0) return 0;
+    return Math.max(0, Math.min(1, (x - TIMELINE_PADDING) / inner)) * totalMs;
+  };
+  const scrubHandlersRef = useRef({ start: (_x: number) => {}, move: (_x: number) => {}, end: () => {} });
+  scrubHandlersRef.current = {
+    start: (x) => {
+      if (barWidthRef.current <= 0) return;
+      setControlsVisible(true);
+      dispatch({ type: 'scrubStart', ms: timelineX(x) });
+    },
+    move: (x) => {
+      if (barWidthRef.current <= 0) return;
+      dispatch({ type: 'scrubMove', ms: timelineX(x) });
+    },
+    end: () => dispatch({ type: 'scrubEnd' }),
+  };
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      // Keep the drag: a parent scroll view stealing it mid-scrub would leave
+      // playback held with no release to resume it.
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: (e: GestureResponderEvent) => {
+        dragStartXRef.current = e.nativeEvent.locationX;
+        scrubHandlersRef.current.start(e.nativeEvent.locationX);
+      },
+      onPanResponderMove: (_e: GestureResponderEvent, gesture: PanResponderGestureState) =>
+        scrubHandlersRef.current.move(dragStartXRef.current + gesture.dx),
+      onPanResponderRelease: () => scrubHandlersRef.current.end(),
+      onPanResponderTerminate: () => scrubHandlersRef.current.end(),
+    }),
+  ).current;
+
   if (uris.length === 0) return null;
 
-  // Finished means the clock ran out, as with a video — not "and the last
-  // image decoded". Requiring the image left replay doing nothing (resuming at
-  // the end) whenever the last panel loaded slowly or failed to load.
-  const atEnd = elapsedMs >= totalMs;
   const iconName = isPlaying ? 'pause' : atEnd ? 'refresh' : 'play';
   const progress = totalMs > 0 ? Math.min(elapsedMs / totalMs, 1) : 0;
 
-  // Rewind to the first panel. Shared by the replay-on-finish path in
-  // togglePlay and the explicit restart button, so both land identically —
-  // two copies of this slot/opacity juggling would be two places to drift.
-  const rewindToStart = () => {
-    fastHideRef.current = true;
-    narratedIndexRef.current = -1;
-    stopNarration();
-    setElapsedMs(0);
-    pendingRef.current = null;
-    opacities[activeSlotRef.current].setValue(0);
-    const firstSlot: Slot = activeSlotRef.current === 0 ? 1 : 0;
-    opacities[firstSlot].setValue(1);
-    activeSlotRef.current = firstSlot;
-    shownIndexRef.current = 0;
-    setSlotUris((prev) => {
-      const next: [string | null, string | null] = [prev[0], prev[1]];
-      next[firstSlot] = uris[0];
-      return next;
-    });
-  };
-
   const togglePlay = () => {
     if (!canPlay) return;
-    // Finished — replay from the first panel, same as a finished video.
-    if (!isPlaying && atEnd) rewindToStart();
+    if (!isPlaying && atEnd) fastHideRef.current = true;
     setControlsVisible(true);
-    setIsPlaying((playing) => !playing);
+    dispatch({ type: 'toggle' });
   };
 
   const restart = () => {
     if (!canPlay) return;
-    rewindToStart();
+    fastHideRef.current = true;
     setControlsVisible(true);
-    setIsPlaying(true);
+    dispatch({ type: 'restart' });
   };
+
+  const cycleSpeed = () => dispatch({ type: 'cycleSpeed' });
+  const toggleMute = () => dispatch({ type: 'setMuted', muted: !muted });
 
   // Reveal if hidden. If already visible, hide only while actually playing —
   // paused controls stay pinned up (there's no other way back to play).
@@ -755,77 +674,15 @@ export function PanelCarousel({
     });
   };
 
-  const toggleMute = () => {
-    setMuted((m) => {
-      const next = !m;
-      if (next) {
-        stopNarration();
-      } else {
-        // Re-narrate whatever panel is current instead of leaving it silent
-        // until the next panel change.
-        narratedIndexRef.current = -1;
-      }
-      return next;
-    });
-  };
-
-  // Applies a seek's landing spot: which panel is now current (a hard cut,
-  // not a crossfade — shared by both the drag-scrub below and the
-  // accessibility increment/decrement action, which resolve targetIndex/
-  // targetMs differently but land the same way).
-  const applyTargetIndex = (targetIndex: number, targetMs: number, pause: boolean) => {
-    if (pause) setIsPlaying(false);
+  // Previous/next and the screen reader's increment/decrement: a whole panel
+  // at a time, keeping play state (a video's skip doesn't pause). Under a
+  // screen reader the landing panel is announced through its own channel.
+  const stepBy = (delta: number) => {
     setControlsVisible(true);
-    stopNarration();
-    // Whatever was narrated before the seek no longer applies; the narration
-    // effect re-narrates the landing panel from the landing offset.
-    narratedIndexRef.current = -1;
-    if (targetIndex !== shownIndexRef.current) {
-      pendingRef.current = null;
-      const slot = activeSlotRef.current;
-      setSlotUris((prev) => {
-        const next: [string | null, string | null] = [prev[0], prev[1]];
-        next[slot] = uris[targetIndex];
-        return next;
-      });
-      opacities[slot].setValue(1);
-      opacities[slot === 0 ? 1 : 0].setValue(0);
-      shownIndexRef.current = targetIndex;
-    }
-    setElapsedMs(targetMs);
-  };
-
-  // Jumps straight to whatever panel the tapped/dragged position on the
-  // timeline corresponds to. A seek is an instant cut, not a crossfade —
-  // that's the expected feel for scrubbing (video players don't dissolve
-  // between frames while you drag either), and it's also simply correct:
-  // there's no "next" panel to preload/decode-then-fade toward, the target
-  // is wherever the viewer just pointed. Takes an X relative to the bar
-  // itself (locationX at touch-down, then tracked via gesture dx) rather
-  // than page-absolute coordinates + `.measure()` — one less native round
-  // trip, and `.measure()` is notorious for returning zeroes on the very
-  // first layout pass.
-  const seekToLocalX = (x: number) => {
-    const barWidth = barWidthRef.current;
-    if (barWidth <= 0) return;
-    const fraction = Math.max(0, Math.min(1, x / barWidth));
-    const targetMs = fraction * totalMs;
-    // Paused while the finger is down (like dragging a video's playhead);
-    // the release handler resumes if it was playing before the drag.
-    applyTargetIndex(indexForElapsed(targetMs, boundaries), targetMs, true);
-  };
-
-  // The VoiceOver/TalkBack "adjustable" increment/decrement action — jumps a
-  // whole panel at a time (unlike the drag above, which tracks the exact
-  // finger position) and announces the landing panel's own text via the
-  // screen reader's own channel, not our suppressed on-device narrator (see
-  // screenReaderEnabled above — running both would talk over each other).
-  const seekToIndex = (targetIndex: number) => {
-    const clamped = Math.max(0, Math.min(targetIndex, uris.length - 1));
-    // Skips keep playing if they were — a video's next/previous doesn't pause.
-    applyTargetIndex(clamped, boundaries[clamped], false);
+    dispatch({ type: 'step', delta });
     if (screenReaderEnabled) {
-      const label = resolvedSteps?.[clamped]?.text ?? `Panel ${clamped + 1} of ${uris.length}`;
+      const landing = Math.max(0, Math.min(panelAt(elapsedMs, boundaries) + delta, uris.length - 1));
+      const label = resolvedSteps?.[landing]?.text ?? `Panel ${landing + 1} of ${uris.length}`;
       AccessibilityInfo.announceForAccessibility(label);
     }
   };
@@ -834,31 +691,9 @@ export function PanelCarousel({
     barWidthRef.current = e.nativeEvent.layout.width;
   };
 
-  const panResponder = PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: () => true,
-    onPanResponderGrant: (e: GestureResponderEvent) => {
-      wasPlayingBeforeScrubRef.current = isPlaying;
-      dragStartXRef.current = e.nativeEvent.locationX;
-      seekToLocalX(e.nativeEvent.locationX);
-    },
-    onPanResponderMove: (_e: GestureResponderEvent, gesture: PanResponderGestureState) =>
-      seekToLocalX(dragStartXRef.current + gesture.dx),
-    onPanResponderRelease: () => endScrub(),
-    onPanResponderTerminate: () => endScrub(),
-  });
-
-  // Resumes after a scrub if playback was running when the drag began — the
-  // narrator then picks up from the landing point (see offsetMs).
-  function endScrub() {
-    if (wasPlayingBeforeScrubRef.current) setIsPlaying(true);
-    wasPlayingBeforeScrubRef.current = false;
-  }
-
   const handleTimelineAccessibilityAction = (event: { nativeEvent: { actionName: string } }) => {
-    const current = indexForElapsed(elapsedMs, boundaries);
-    if (event.nativeEvent.actionName === 'increment') seekToIndex(current + 1);
-    else if (event.nativeEvent.actionName === 'decrement') seekToIndex(current - 1);
+    if (event.nativeEvent.actionName === 'increment') stepBy(1);
+    else if (event.nativeEvent.actionName === 'decrement') stepBy(-1);
   };
 
   return (
@@ -931,7 +766,7 @@ export function PanelCarousel({
                 >
                   <Pressable
                     testID={testID ? `${testID}-prev` : undefined}
-                    onPress={() => seekToIndex(indexForElapsed(elapsedMs, boundaries) - 1)}
+                    onPress={() => stepBy(-1)}
                     accessibilityRole="button"
                     accessibilityLabel="Previous panel"
                   >
@@ -960,7 +795,7 @@ export function PanelCarousel({
                   </Pressable>
                   <Pressable
                     testID={testID ? `${testID}-next` : undefined}
-                    onPress={() => seekToIndex(indexForElapsed(elapsedMs, boundaries) + 1)}
+                    onPress={() => stepBy(1)}
                     accessibilityRole="button"
                     accessibilityLabel="Next panel"
                   >
@@ -1041,10 +876,13 @@ export function PanelCarousel({
                   // can actually hit.
                   height: 40,
                   justifyContent: 'center',
-                  paddingHorizontal: 12,
+                  paddingHorizontal: TIMELINE_PADDING,
                 }}
               >
-                <View style={{ height: HANDLE_SIZE, justifyContent: 'center' }}>
+                {/* pointerEvents none on everything inside: touches must land
+                    on the timeline view itself, so locationX is measured from
+                    the same origin whichever part of the bar is touched. */}
+                <View pointerEvents="none" style={{ height: HANDLE_SIZE, justifyContent: 'center' }}>
                   <View
                     style={{
                       height: 3,

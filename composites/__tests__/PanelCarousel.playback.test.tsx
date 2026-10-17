@@ -90,7 +90,14 @@ function scrub(getByTestId: any, fromX: number, toX = fromX, release = true) {
     });
   }
 }
-const xFor = (ms: number) => (ms / TOTAL_MS) * 300;
+// The timeline's touch area is 300 wide with 12 of padding each side.
+const xFor = (ms: number) => 12 + (ms / TOTAL_MS) * (300 - 24);
+// Real time: one render per clock tick, as on a device. A single big
+// advanceTimersByTime batches every tick into one render, which skips the
+// intermediate panels' narration in a way that never happens on a phone.
+const playFor = (ms: number) => {
+  for (let t = 0; t < ms; t += 100) act(() => jest.advanceTimersByTime(100));
+};
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const isPlaying = (getByTestId: any) => getByTestId('c-toggle').props.accessibilityLabel === 'Pause';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -374,6 +381,85 @@ describe('PanelCarousel playback — behaves like a video with a narrator track'
       expect(p.seekTo.mock.invocationCallOrder[0]).toBeLessThan(
         p.play.mock.invocationCallOrder[p.play.mock.invocationCallOrder.length - 1],
       );
+    });
+  });
+
+  describe('reported glitches', () => {
+    it('previous while playing lands on the previous panel and stays there — the clock does not snap back', () => {
+      const { getByTestId } = mount();
+      act(() => jest.advanceTimersByTime(A_MS + 1000)); // into panel B
+      expect(lastSource()).toBe('https://cdn/b.mp3');
+      reveal(getByTestId);
+      fireEvent.press(getByTestId('c-prev'));
+      expect(lastSource()).toBe('https://cdn/a.mp3');
+      expect(startedAt()).toBe(0);
+      player().replace.mockClear();
+      act(() => jest.advanceTimersByTime(1000)); // the clock keeps running from panel A
+      expect(player().replace).not.toHaveBeenCalled(); // no jump back to B
+      expect(isPlaying(getByTestId)).toBe(true);
+    });
+
+    it('pressing previous repeatedly from the first panel replays its narration, never silence', () => {
+      const { getByTestId } = mount();
+      act(() => jest.advanceTimersByTime(1500));
+      reveal(getByTestId);
+      for (let i = 0; i < 3; i++) {
+        player().play.mockClear();
+        fireEvent.press(getByTestId('c-prev'));
+        expect(player().play).toHaveBeenCalledTimes(1);
+        expect(lastSeek()).toBe(0);
+      }
+    });
+
+    it('a drag across several moves follows the finger, measured from where it went down', () => {
+      const { getByTestId } = mount();
+      const bar = getByTestId('c-timeline');
+      fireEvent(bar, 'layout', { nativeEvent: { layout: { width: 300 } } });
+      const x0 = xFor(1000);
+      act(() => bar.props.onResponderGrant(touch(x0, x0, x0)));
+      let prev = x0;
+      for (const ms of [2000, 6000, 3000]) {
+        const x = xFor(ms);
+        // RN accumulates dx from each move's previous position, as a real touch reports it.
+        act(() => getByTestId('c-timeline').props.onResponderMove(touch(x, prev, x0)));
+        prev = x;
+      }
+      act(() => getByTestId('c-timeline').props.onResponderRelease(touch(xFor(3000), xFor(3000), x0)));
+      expect(lastSource()).toBe('https://cdn/a.mp3');
+      expect(lastSeek()).toBeGreaterThan(2.8);
+      expect(lastSeek()).toBeLessThan(3.2);
+    });
+
+    it('a drag whose release never arrives does not leave the player stuck silent', () => {
+      const { getByTestId } = mount();
+      scrub(getByTestId, xFor(1000), xFor(1000), false); // finger down, no release
+      expect(isPlaying(getByTestId)).toBe(false);
+      player().play.mockClear();
+      reveal(getByTestId);
+      fireEvent.press(getByTestId('c-toggle'));
+      expect(isPlaying(getByTestId)).toBe(true);
+      expect(player().play).toHaveBeenCalledTimes(1);
+    });
+
+    it('a mixed exercise (recording, speech, recording) narrates every panel through a full play and a restart', () => {
+      const mixed: PanelStep[] = [
+        STEPS[0],
+        { text: 'Hold at the top.', holdSeconds: 0.5 },
+        { text: 'Lower slowly.', holdSeconds: 0.5, audioUrl: 'https://cdn/c.mp3', audioDurationMs: 2000 },
+      ];
+      const { getByTestId } = mount({ uris: ['a.png', 'b.png', 'c.png'], steps: mixed });
+      playFor(12000);
+      expect(speak).toHaveBeenCalledWith('Hold at the top.', expect.any(Object));
+      const sources = player().replace.mock.calls.map((c: [{ uri: string }]) => c[0].uri);
+      expect(sources).toEqual(['https://cdn/a.mp3', 'https://cdn/c.mp3']);
+      speak.mockClear();
+      player().play.mockClear();
+      fireEvent.press(getByTestId('c-toggle')); // replay from the end
+      expect(lastSource()).toBe('https://cdn/a.mp3');
+      expect(startedAt()).toBe(0);
+      playFor(12000);
+      expect(speak).toHaveBeenCalledWith('Hold at the top.', expect.any(Object));
+      expect(player().play).toHaveBeenCalledTimes(2);
     });
   });
 });

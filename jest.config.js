@@ -21,4 +21,15 @@ module.exports = {
     'node_modules/(?!(jest-)?react-native|@react-native|@react-native-community|expo(nent)?|@expo|@expo-google-fonts|react-clone-referenced-element|@react-navigation|@unimodules|expo-modules-core|sentry-expo|native-base|react-native-svg|@aws-amplify|aws-amplify|@react-native-async-storage|nativewind)',
   ],
   testPathIgnorePatterns: ['/node_modules/'],
+
+  // The panel player is the most failure-prone surface in both apps (audio,
+  // timing, gestures). `npm run test:player` runs with coverage and fails
+  // below these floors — set just under where they stand — so a change to the
+  // player cannot merge without tests that exercise it. See docs/player.md.
+  coverageThreshold: {
+    './lib/panelPlayback.ts': { lines: 95, branches: 88, functions: 80 },
+    './lib/narrationDriver.ts': { lines: 95, branches: 90, functions: 80 },
+    './lib/panelTiming.ts': { lines: 100, branches: 100, functions: 100 },
+    './composites/PanelCarousel.tsx': { lines: 95, branches: 80, functions: 85 },
+  },
 };

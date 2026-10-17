@@ -27,3 +27,7 @@ jobs:
         run: npm run lint
       - name: Test
         run: npm test
+      # The panel player's tests with a coverage floor (see docs/player.md):
+      # a player change without tests that reach it fails here.
+      - name: Player tests + coverage gate
+        run: npm run test:player
