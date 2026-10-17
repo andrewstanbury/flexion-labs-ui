@@ -8,7 +8,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { controlHeight, radius, space } from '../tokens';
-import { useTheme } from '../UIProvider';
+import { useReducedMotion, useTheme } from '../UIProvider';
 import { Text } from './Text';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'destructive';
@@ -97,8 +97,11 @@ function ButtonRoot({
     inputRange: [0, 1],
     outputRange: [0, edge],
   });
+  const reduceMotion = useReducedMotion();
   const animate = (toValue: number, duration: number) =>
-    Animated.timing(press, { toValue, duration, useNativeDriver: true }).start();
+    reduceMotion
+      ? press.setValue(toValue)
+      : Animated.timing(press, { toValue, duration, useNativeDriver: true }).start();
 
   return (
     <Pressable

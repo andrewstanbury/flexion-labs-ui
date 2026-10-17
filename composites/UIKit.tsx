@@ -17,6 +17,7 @@ import { Checklist, Chip, Choice, IconButton, RadioOption } from './Controls';
 import { Banner, Meter, StageStrip, StateLine, StepTrail, Tile } from './Status';
 import { BottomBar, ChatBubble, Disclosure, Grid, MoreMenu, Panel, Properties } from './Structure';
 import { NumberField, TextField } from './Fields';
+import { AppearanceSection } from './AppearanceSection';
 
 // UIKit — every design-system component on one scrolling page, with physio
 // examples. Mount it on a dev-only route in either app to review the library
@@ -58,6 +59,13 @@ export function UIKit() {
       contentContainerStyle={{ padding: layout.screenX, paddingBottom: space[16], gap: space[6], maxWidth: 720 }}
     >
       <Text variant="display">UI kit</Text>
+
+      <Section title="Appearance">
+        <Text variant="caption" color="secondary">
+          Changes here apply to the whole app, as they would from Settings.
+        </Text>
+        <AppearanceSection />
+      </Section>
 
       <Section title="Text">
         {(Object.keys(typography) as (keyof typeof typography)[]).map((v) => (

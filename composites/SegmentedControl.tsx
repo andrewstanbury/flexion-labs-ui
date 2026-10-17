@@ -2,7 +2,7 @@ import { View, type StyleProp, type ViewStyle } from 'react-native';
 import type { ComponentProps } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space } from '../tokens';
-import { useScheme, useTheme } from '../UIProvider';
+import { useTheme } from '../UIProvider';
 import { Pressable } from '../primitives/Pressable';
 import { Text } from '../primitives/Text';
 import { Icon } from '../primitives/Icon';
@@ -32,10 +32,9 @@ export function SegmentedControl<T extends string>({
   onChange,
   style,
 }: SegmentedControlProps<T>) {
-  const scheme = useScheme();
   const t = useTheme();
-  const surface = scheme === 'dark' ? colors.sand[800] : colors.white;
-  const inactiveIcon = scheme === 'dark' ? colors.sand[300] : colors.sand[700];
+  const surface = t.surfaceElevated;
+  const inactiveIcon = t.textSecondary;
   return (
     <View
       accessibilityRole="radiogroup"

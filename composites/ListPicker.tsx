@@ -3,7 +3,7 @@ import { View, Modal, type StyleProp, type ViewStyle } from 'react-native';
 import type { ComponentProps } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space } from '../tokens';
-import { useScheme, useTheme } from '../UIProvider';
+import { useTheme } from '../UIProvider';
 import { Pressable } from '../primitives/Pressable';
 import { Text } from '../primitives/Text';
 import { Icon } from '../primitives/Icon';
@@ -39,10 +39,9 @@ export function ListPicker<T extends string>({
   title,
   style,
 }: ListPickerProps<T>) {
-  const scheme = useScheme();
   const t = useTheme();
   const [open, setOpen] = useState(false);
-  const surface = scheme === 'dark' ? colors.sand[800] : colors.white;
+  const surface = t.surfaceElevated;
   const selected = options.find((o) => o.value === value);
 
   const close = () => setOpen(false);
@@ -125,7 +124,7 @@ export function ListPicker<T extends string>({
                     backgroundColor: active ? t.accentSurface : colors.transparent,
                   }}
                 >
-                  {o.icon ? <Icon name={o.icon} size={18} color={active ? t.accentOn : colors.sand[500]} /> : null}
+                  {o.icon ? <Icon name={o.icon} size={18} color={active ? t.accentOn : t.textMuted} /> : null}
                   <Text
                     variant="body"
                     color={active ? undefined : 'secondary'}

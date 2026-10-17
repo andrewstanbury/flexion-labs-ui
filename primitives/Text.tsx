@@ -1,6 +1,6 @@
 import { Platform, Text as RNText, type TextProps, type StyleProp, type TextStyle } from 'react-native';
 import { typography } from '../tokens';
-import { useTheme } from '../UIProvider';
+import { useAppearance, useTheme } from '../UIProvider';
 
 // Text follows the phone's native text-size (OS Dynamic Type) via RN's default
 // `allowFontScaling`. We cap how far it can grow so large accessibility sizes
@@ -41,6 +41,18 @@ export type TextVariantProps = TextProps & {
   style?: StyleProp<TextStyle>;
 };
 
+// Font choices (v0.32.0). iOS has system "rounded" and "serif" designs; Android
+// has a serif but no rounded system face, so rounded falls back to the default.
+const FONT_FAMILY = {
+  system: undefined,
+  rounded: Platform.select({ ios: 'ui-rounded', web: 'ui-rounded, "SF Pro Rounded", system-ui, sans-serif', default: undefined }),
+  serif: Platform.select({ ios: 'ui-serif', android: 'serif', web: 'ui-serif, Georgia, serif', default: 'serif' }),
+} as const;
+
+const TEXT_SIZE_SCALE = { sm: 0.92, md: 1, lg: 1.1, xl: 1.22 } as const;
+
+const BOLDER: Record<string, '600' | '700' | '800' | '900'> = { '400': '600', '500': '600', '600': '700', '700': '800', '800': '900' };
+
 const MONO = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'ui-monospace, Menlo, monospace' });
 
 function useColor(role: ColorRole): string {
@@ -71,6 +83,10 @@ function TextRoot({
 }: TextVariantProps) {
   const color = useColor(role);
   const t = typography[variant];
+  const appearance = useAppearance();
+  const scale = TEXT_SIZE_SCALE[appearance.textSize] ?? 1;
+  const family = mono ? MONO : FONT_FAMILY[appearance.font];
+  const weight = appearance.boldText ? (BOLDER[t.fontWeight] ?? t.fontWeight) : t.fontWeight;
   return (
     <RNText
       maxFontSizeMultiplier={MAX_FONT_SCALE}
@@ -78,15 +94,15 @@ function TextRoot({
       style={[
         {
           color,
-          fontSize: t.fontSize,
-          lineHeight: t.lineHeight,
-          fontWeight: t.fontWeight,
+          fontSize: t.fontSize * scale,
+          lineHeight: Math.round(t.lineHeight * scale),
+          fontWeight: weight,
+          ...(family ? { fontFamily: family } : null),
           // Spread rather than named: not every variant defines letterSpacing,
           // and listing it explicitly would set `undefined` on the ones that
           // don't. Picking fields one by one is also how the tracking added to
           // the type scale in v0.16.0 was silently dropped before this line.
           ...('letterSpacing' in t ? { letterSpacing: t.letterSpacing } : null),
-          ...(mono ? { fontFamily: MONO } : null),
           ...(italic ? { fontStyle: 'italic' as const } : null),
           ...(tabular ? { fontVariant: ['tabular-nums' as const] } : null),
           ...(align ? { textAlign: align } : null),

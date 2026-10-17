@@ -12,10 +12,12 @@ export * from './lib/appLockLogic';
 export * from './lib/secureKeyValueStorage';
 export * from './lib/apiTransport';
 export * from './lib/toPanelSteps';
+export * from './lib/palettes';
 
 // Hooks
 export * from './hooks/createPersistedStore';
 export * from './hooks/useThemeStore';
+export * from './hooks/useAppearanceStore';
 export * from './hooks/useIsDark';
 export * from './hooks/useIsWide';
 export * from './hooks/useSidebarStore';
@@ -68,6 +70,7 @@ export * from './composites/Controls';
 export * from './composites/Status';
 export * from './composites/Structure';
 export * from './composites/Fields';
+export * from './composites/AppearanceSection';
 export * from './composites/UIKit';
 export * from './composites/NavigationSection';
 export * from './composites/StorageBar';

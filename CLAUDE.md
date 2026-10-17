@@ -34,7 +34,7 @@ Consequences:
 - App code must import from the package root (`@flexion-labs/ui`), never from a
   deep path inside the package.
 - Release history is in [`CHANGELOG.md`](./CHANGELOG.md) (keep it updated on every
-  version bump) plus the git tags. Current tags: v0.1.0 … v0.31.0.
+  version bump) plus the git tags. Current tags: v0.1.0 … v0.32.0.
 
 ### Current public export surface (the contract)
 
@@ -189,6 +189,12 @@ sage green. See `tokens.ts` `semantic.light` /
 `accentOn` foreground (dark plum on pink, white on green). Characterization
 tests in `UIProvider.tsx` / `hooks/useIsDark.ts` `__tests__/` pin the resolution
 behavior; update them if you change either path.
+
+Since v0.32.0 the palette is user-selectable (`useAppearanceStore`, `lib/palettes.ts`):
+`useTheme()` resolves scheme + palette + contrast, and the apps feed
+`paletteVars()` into NativeWind CSS variables so class-based colours follow.
+Any new colour must come from `useTheme()` (or a var-backed class), never a
+fixed hex or `colors.*` ramp, or it will ignore the user's palette.
 
 See [`docs/theme.md`](./docs/theme.md) for the full breakdown (truth table + how
 the two paths are bridged).
