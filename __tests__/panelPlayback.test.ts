@@ -156,8 +156,9 @@ describe('narrationIntent — what the narrator should be doing', () => {
 
 // ── Driver ───────────────────────────────────────────────────────────────
 
-// A simulated narrator with the real-world quirk that bit us: a clip that has
-// played to its end stays parked at its end until it is seeked.
+// A simulated narrator. startClip is the sequencer's contract: the clip plays
+// from startMs (ordering within a start is ClipSequencer's job, tested in
+// clipSequencer.test.ts). A clip that runs to its end parks there.
 function fakeBackend() {
   const log: string[] = [];
   const st = {
@@ -167,11 +168,11 @@ function fakeBackend() {
   const backend: NarrationBackend = {
     speak: (text, rate) => { st.speech = text; log.push(`speak:${text}@${rate}`); },
     stopSpeech: () => { st.speech = null; },
-    loadClip: (url) => { st.clip = { ...st.clip, url, pos: 0, loaded: false, playing: false }; log.push(`load:${url}`); },
-    seekClip: (s) => { st.clip.pos = s; log.push(`seek:${s}`); },
-    setClipRate: (r) => { st.clip.rate = r; },
-    playClip: () => { st.clip.playing = true; log.push(`play:${st.clip.url}@${st.clip.pos}`); },
-    pauseClip: () => { st.clip.playing = false; },
+    startClip: (url, startMs, rate) => {
+      st.clip = { url, pos: startMs / 1000, playing: true, rate, loaded: true };
+      log.push(`play:${url}@${startMs / 1000}`);
+    },
+    stopClip: () => { st.clip.playing = false; },
   };
   return { backend, st, log };
 }
@@ -187,28 +188,30 @@ describe('NarrationDriver', () => {
     expect(f.log.filter((l) => l.startsWith('play'))).toHaveLength(1);
   });
 
-  it('a fresh clip loads and plays from 0 without a seek', () => {
+  it('a clip starts where the intent says', () => {
     const f = fakeBackend();
-    new NarrationDriver(f.backend).apply(clip('1', 'a.mp3', 0));
-    expect(f.log).toEqual(['load:a.mp3', 'play:a.mp3@0']);
+    new NarrationDriver(f.backend).apply(clip('1', 'c.mp3', 900));
+    expect(f.log).toEqual(['play:c.mp3@0.9']);
   });
 
-  it('the same clip again is rewound before playing — never left parked at its end', () => {
+  it('the same clip as a new take starts again — never left parked at its end', () => {
     const f = fakeBackend();
     const d = new NarrationDriver(f.backend);
     d.apply(clip('1', 'a.mp3', 0));
     f.st.clip.pos = 4; // played to the end
     d.apply(clip('2', 'a.mp3', 0));
-    expect(f.log.slice(-2)).toEqual(['seek:0', 'play:a.mp3@0']);
+    expect(f.log).toEqual(['play:a.mp3@0', 'play:a.mp3@0']);
   });
 
-  it('an offset on a fresh clip is seeked now and again once it has loaded', () => {
+  it('reset stops both channels and lets the same take run again', () => {
     const f = fakeBackend();
     const d = new NarrationDriver(f.backend);
-    d.apply(clip('1', 'c.mp3', 900));
-    d.clipLoaded('c.mp3');
-    d.clipLoaded('c.mp3');
-    expect(f.log.filter((l) => l === 'seek:0.9')).toHaveLength(2);
+    d.apply(clip('1', 'a.mp3', 0));
+    d.reset();
+    expect(f.st.clip.playing).toBe(false);
+    expect(d.currentKey).toBeNull();
+    d.apply(clip('1', 'a.mp3', 0));
+    expect(f.st.clip.playing).toBe(true);
   });
 
   it('stops the other channel when switching between speech and a clip', () => {
@@ -227,7 +230,7 @@ describe('NarrationDriver', () => {
     const f = fakeBackend();
     const d = new NarrationDriver(f.backend);
     d.apply(clip('1', 'a.mp3', 0));
-    d.clipFailed('a.mp3');
+    d.clipFailed();
     d.apply({ kind: 'speech', key: '1:speech', text: 'Stand', rate: 1 });
     expect(f.st.speech).toBe('Stand');
   });

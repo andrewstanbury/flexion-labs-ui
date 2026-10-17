@@ -27,6 +27,7 @@ import {
   type PlaybackState,
 } from '../lib/panelPlayback';
 import { NarrationDriver, type NarrationBackend } from '../lib/narrationDriver';
+import { ClipSequencer } from '../lib/clipSequencer';
 
 // expo-audio is loaded on first use, never at import time. index.ts re-exports
 // this file, so a top-level import would load the native module for every
@@ -305,6 +306,14 @@ export function PanelCarousel({
   const muted = pb.muted;
 
   const [controlsVisible, setControlsVisible] = useState(!(autoPlay && canPlay));
+  // Bumped on every control press so the auto-hide countdown restarts: a
+  // countdown that ran from when the controls first appeared hid them mid
+  // tapping, and the next tap landed on the wrong thing.
+  const [controlsPoke, setControlsPoke] = useState(0);
+  const pokeControls = () => {
+    setControlsVisible(true);
+    setControlsPoke((n) => n + 1);
+  };
 
   // Two-slot double buffer for the crossfade. Whichever slot is "active" is
   // fully opaque and showing; advancing loads the next frame into the OTHER
@@ -403,7 +412,8 @@ export function PanelCarousel({
   const failClip = (url: string | null) => {
     if (!url || !mountedRef.current) return;
     narratorLog('clip failed for good', url);
-    driver.clipFailed(url);
+    sequencer.forget();
+    driver.clipFailed();
     setFailedAudioUrls((prev) => (prev.includes(url) ? prev : [...prev, url]));
   };
   // An error from the audio player. Not necessarily the recording's fault —
@@ -412,7 +422,8 @@ export function PanelCarousel({
   const onClipError = (url: string | null, error: unknown) => {
     if (!url || !mountedRef.current) return;
     narratorLog('clip error', url, error);
-    driver.clipFailed(url); // forget it is loaded; the next apply reloads it
+    sequencer.forget(); // the next start reloads it
+    driver.clipFailed();
     const current = intentRef.current;
     // Nothing is meant to be playing (paused, scrubbing, another panel): the
     // error is from an abandoned load and costs the recording nothing.
@@ -431,29 +442,34 @@ export function PanelCarousel({
     const audio = loadExpoAudio();
     if (!audio) throw new Error('expo-audio unavailable');
     ensureAudioMode(audio);
-    // Created empty: every clip, the first included, arrives via replace().
+    // Created empty: every clip arrives via replace(), sequenced by
+    // ClipSequencer (load → wait → seek → play → confirm).
     const player = audio.createAudioPlayer(null);
     audioPlayerRef.current = player;
-    // Load/playback failures (expired signed URL, network, decoder) arrive
-    // asynchronously as an error status, not a thrown error.
     let lastStatus = '';
     audioSubscriptionRef.current = player.addListener('playbackStatusUpdate', (status) => {
       const summary = `loaded=${status.isLoaded} playing=${status.playing} finished=${status.didJustFinish}`;
       if (summary !== lastStatus) {
         lastStatus = summary;
-        narratorLog('status', clipUrlRef.current, summary);
+        narratorLog('status', sequencerRef.current?.currentSource, summary);
       }
       if (status.error) {
-        onClipError(clipUrlRef.current, status.error);
+        onClipError(sequencerRef.current?.currentSource ?? null, status.error);
         return;
       }
-      if (status.isLoaded && clipUrlRef.current) {
-        clipErrorsRef.current.delete(clipUrlRef.current);
-        driver.clipLoaded(clipUrlRef.current);
+      sequencerRef.current?.status(status);
+      if (status.isLoaded && status.playing && sequencerRef.current?.currentSource) {
+        clipErrorsRef.current.delete(sequencerRef.current.currentSource);
       }
     });
     return player;
   };
+  // One sequencer per mount, bound to the (lazily created) player.
+  const sequencerRef = useRef<ClipSequencer | null>(null);
+  if (!sequencerRef.current) {
+    sequencerRef.current = new ClipSequencer(() => ensurePlayer(), { log: narratorLog });
+  }
+  const sequencer = sequencerRef.current;
   const speechStartedRef = useRef(false);
   const lastSpeechStopRef = useRef(-Infinity);
   const speechTokenRef = useRef(0);
@@ -495,38 +511,31 @@ export function PanelCarousel({
         }
         Speech.stop();
       },
-      loadClip: (url) => {
-        narratorLog('load', url);
-        clipUrlRef.current = url;
-        ensurePlayer().replace({ uri: url });
+      startClip: (url, startMs, rate) => sequencerRef.current?.start(url, startMs / 1000, rate),
+      stopClip: () => {
+        // Nothing to stop before the first clip: don't create a player for it.
+        if (audioPlayerRef.current) sequencerRef.current?.stop();
       },
-      seekClip: (seconds) => {
-        narratorLog('seek', seconds.toFixed(2));
-        const p = audioPlayerRef.current;
-        if (p) Promise.resolve(p.seekTo(seconds)).catch(() => {});
-      },
-      setClipRate: (rate) => audioPlayerRef.current?.setPlaybackRate(rate),
-      playClip: () => {
-        narratorLog('play', clipUrlRef.current);
-        audioPlayerRef.current?.play();
-      },
-      pauseClip: () => audioPlayerRef.current?.pause(),
     };
     driverRef.current = new NarrationDriver(backend);
   }
   const driver = driverRef.current;
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    // Set on (re)mount too: development StrictMode runs effects twice, and a
+    // false left by the first cleanup silenced every later narration.
+    mountedRef.current = true;
+    return () => {
       mountedRef.current = false;
       driverRef.current?.reset();
+      // The player is removed below; whatever it had loaded is gone with it.
+      sequencerRef.current?.forget();
       audioSubscriptionRef.current?.remove();
       audioSubscriptionRef.current = null;
       audioPlayerRef.current?.remove();
       audioPlayerRef.current = null;
-    },
-    [],
-  );
+    };
+  }, []);
 
   // Prepare the audio session before the viewer presses play.
   const hasRecordings = !!narrate && !!resolvedSteps?.some((st) => st.audioUrl);
@@ -695,7 +704,7 @@ export function PanelCarousel({
     return () => {
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     };
-  }, [controlsVisible, isPlaying, screenReaderEnabled]);
+  }, [controlsVisible, isPlaying, screenReaderEnabled, controlsPoke]);
 
   // Scrubbing. The PanResponder is created ONCE and calls through a ref to
   // the latest handlers: one rebuilt every render (and the timeline re-renders
@@ -709,14 +718,13 @@ export function PanelCarousel({
   scrubHandlersRef.current = {
     start: (x) => {
       if (barWidthRef.current <= 0) return;
-      setControlsVisible(true);
-      dispatch({ type: 'scrubStart', ms: timelineX(x) });
+      userAction({ type: 'scrubStart', ms: timelineX(x) });
     },
     move: (x) => {
       if (barWidthRef.current <= 0) return;
       dispatch({ type: 'scrubMove', ms: timelineX(x) });
     },
-    end: () => dispatch({ type: 'scrubEnd' }),
+    end: () => userAction({ type: 'scrubEnd' }),
   };
   const panResponder = useRef(
     PanResponder.create({
@@ -741,22 +749,28 @@ export function PanelCarousel({
   const iconName = isPlaying ? 'pause' : atEnd ? 'refresh' : 'play';
   const progress = totalMs > 0 ? Math.min(elapsedMs / totalMs, 1) : 0;
 
+  // Every viewer action goes through here: logged (so a device log shows what
+  // was pressed before a glitch) and restarting the controls' auto-hide.
+  const userAction = (action: PlaybackAction) => {
+    narratorLog('action', action.type, `@${(pb.elapsedMs / 1000).toFixed(2)}s`, isPlaying ? 'playing' : 'paused');
+    pokeControls();
+    dispatch(action);
+  };
+
   const togglePlay = () => {
     if (!canPlay) return;
     if (!isPlaying && atEnd) fastHideRef.current = true;
-    setControlsVisible(true);
-    dispatch({ type: 'toggle' });
+    userAction({ type: 'toggle' });
   };
 
   const restart = () => {
     if (!canPlay) return;
     fastHideRef.current = true;
-    setControlsVisible(true);
-    dispatch({ type: 'restart' });
+    userAction({ type: 'restart' });
   };
 
-  const cycleSpeed = () => dispatch({ type: 'cycleSpeed' });
-  const toggleMute = () => dispatch({ type: 'setMuted', muted: !muted });
+  const cycleSpeed = () => userAction({ type: 'cycleSpeed' });
+  const toggleMute = () => userAction({ type: 'setMuted', muted: !muted });
 
   // Reveal if hidden. If already visible, hide only while actually playing —
   // paused controls stay pinned up (there's no other way back to play).
@@ -774,8 +788,7 @@ export function PanelCarousel({
   // at a time, keeping play state (a video's skip doesn't pause). Under a
   // screen reader the landing panel is announced through its own channel.
   const stepBy = (delta: number) => {
-    setControlsVisible(true);
-    dispatch({ type: 'step', delta });
+    userAction({ type: 'step', delta });
     if (screenReaderEnabled) {
       const landing = Math.max(0, Math.min(panelAt(elapsedMs, boundaries) + delta, uris.length - 1));
       const label = resolvedSteps?.[landing]?.text ?? `Panel ${landing + 1} of ${uris.length}`;

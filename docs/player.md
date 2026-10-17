@@ -14,7 +14,8 @@ tested to one rule:
 |---|---|---|
 | Playback model | `lib/panelPlayback.ts` | Pure reducer: clock, play/pause, seek, previous/next, scrub, restart, speed, mute, resync, retime, reset. No React, timers or audio. |
 | Narration intent | `lib/panelPlayback.ts` (`narrationIntent`) | From state: the one thing the narrator should be doing now — a clip from an offset, a line of speech, or silence — identified by a **take key**. |
-| Driver | `lib/narrationDriver.ts` | Makes the narrator match the intent, acting only when the take key changes. Owns which clip is loaded, rewinds, and offsets for clips still loading. |
+| Driver | `lib/narrationDriver.ts` | Makes the narrator match the intent, acting only when the take key changes: stops the other channel, then speaks or starts a clip from an offset. |
+| Clip sequencer | `lib/clipSequencer.ts` | Orders the native audio commands for each clip start: `replace` → wait for **this** source to report loaded (or a timeout) → `seekTo` → `play` → confirm it is playing, pressing play again if the first was dropped. Every start supersedes older ones (their pending steps are dropped), and rapid loads within 120ms coalesce into one. |
 | Component | `composites/PanelCarousel.tsx` | Dispatches actions and clock ticks, renders state (panels, crossfade, controls, timeline), wires expo-speech/expo-audio into the driver. |
 | Timing | `lib/panelTiming.ts` | Panel dwell times from recording length or a speech estimate. |
 
@@ -30,7 +31,9 @@ point. A natural panel change starts the new panel's line from 0.
   start mid-sentence: it re-reads the line if early in it, otherwise waits for
   the next panel. Past the end of a recording, silence until the next panel.
 - **Restart / replay at the end:** panel 1 and its narration from 0.
-- **Previous / next:** jump a panel, keep playing, narrate it from 0.
+- **Previous / next:** jump a panel, keep playing, narrate it from 0. A burst
+  of presses loads only the clip it lands on (after a 120ms settle); a load
+  that finishes after the viewer moved on is never played.
 - **Scrub:** playback holds while the finger is down, resumes after if it was
   playing, narration from the landing point. Any other control ends a scrub
   whose release was lost.
@@ -49,6 +52,7 @@ npm run test:player   # every player test + a coverage floor (also in CI and `ve
 | Suite | Covers |
 |---|---|
 | `__tests__/panelPlayback.test.ts` | The model and intent, case by case; the driver against a simulated narrator that reproduces the "clip parked at its end" quirk; **400 randomized control sequences** checking invariants after every step (one voice at a time; silent while paused/muted/scrubbing; narration always for the current panel; clips start where intended; restart replays panel 1 from 0; natural advances start at 0). |
+| `__tests__/clipSequencer.test.ts` | Command ordering against a player that behaves like iOS: play only after this source loads, a stale "loaded" from the previous source ignored, superseded starts dropped, rapid starts coalesced, dropped plays re-pressed, the load timeout, stop/forget. |
 | `composites/__tests__/PanelCarousel.playback.test.tsx` | The real component end to end: load, restart, pause/resume, scrubbing through the real PanResponder (synthetic touch history), skip, speed, mixed recording/speech exercises, and the reported glitches. |
 | `composites/__tests__/PanelCarousel.test.tsx` | Rendering, crossfade, controls, accessibility, speech and recording basics. |
 
@@ -61,20 +65,27 @@ Test-writing notes: advance the clock in tick-sized steps (`playFor`) when a
 test cares about intermediate panels — one big `advanceTimersByTime` batches
 every tick into a single render, which never happens on a device. Drag tests
 must pass each move's real previous position; React Native accumulates `dx`
-from it.
+from it. Presses faster than the 120ms settle window defer a load; call
+`settle()` before asserting on the loaded source. The `expo-audio` mock in
+`jest.setup.ts` emits status events like iOS (`replace` → unloaded, loaded;
+`play` → playing); override `replace` to model a slow load.
 
 ## Diagnosing a device-only glitch
 
 Development builds (Expo Go, dev client) log every narration decision as
 `[narrator]` lines in the Metro output: each take (key, kind, clip and start
 point, playhead), every load/seek/play, each line of speech, and the audio
-player's status changes (loaded / playing / finished / error). Reproduce the
+player's status changes (loaded / playing / finished / error), and every
+viewer action (`action step @3.20s playing`), so a log shows what was pressed
+right before a glitch. Reproduce the
 glitch, then read the lines around it — the take that should have produced
 sound and what the native side reported.
 
 Known device behaviours handled in the component (not visible to mocks):
 iOS reports an abandoned load as an error (retried, and ignored when nothing
-should be playing); iOS drops speech started right after a stop (150ms gap).
+should be playing); iOS drops speech started right after a stop (150ms gap);
+iOS drops a `play()` issued before a `replace()` has loaded and briefly reports
+the old source as loaded (ClipSequencer waits for unloaded → loaded).
 
 ## What only a device can confirm
 
@@ -84,5 +95,7 @@ that touches the player, check once on an iPhone (Expo Go is fine):
 1. First panel's recording is audible with the ring/silent switch on silent.
 2. Restart, replay, previous and a scrub mid-recording all give sound from the
    right point.
-3. Toggling the screen off/on or switching apps mid-panel, then resuming.
-4. An exercise without recordings narrates with on-device speech throughout.
+3. Rapid next/back presses end on the panel you land on, playing, with the
+   controls still up.
+4. Toggling the screen off/on or switching apps mid-panel, then resuming.
+5. An exercise without recordings narrates with on-device speech throughout.

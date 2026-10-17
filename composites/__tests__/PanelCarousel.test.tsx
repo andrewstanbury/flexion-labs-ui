@@ -609,9 +609,10 @@ describe('<PanelCarousel />', () => {
       const listener = player().addListener.mock.calls[player().addListener.mock.calls.length - 1][1];
       // One error is retried (a fast scrub's abandoned load reports one too);
       // a second gives up on the recording.
+      player().replace.mockImplementationOnce(() => listener({ error: 'HTTP 403', isLoaded: false }));
       act(() => listener({ error: 'HTTP 403', isLoaded: false }));
       expect(speak).not.toHaveBeenCalled();
-      act(() => listener({ error: 'HTTP 403', isLoaded: false }));
+      act(() => jest.advanceTimersByTime(150)); // the retry reloads — and fails again
       expect(speak).toHaveBeenCalledWith('Stand tall.', expect.any(Object));
       // The 4s recording would still be holding panel a; the 2-word TTS
       // estimate (~1.2s + 0.5s hold) has long since moved on.

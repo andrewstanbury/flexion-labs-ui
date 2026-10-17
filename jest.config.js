@@ -29,6 +29,7 @@ module.exports = {
   coverageThreshold: {
     './lib/panelPlayback.ts': { lines: 95, branches: 88, functions: 80 },
     './lib/narrationDriver.ts': { lines: 95, branches: 90, functions: 80 },
+    './lib/clipSequencer.ts': { lines: 95, branches: 90, functions: 90 },
     './lib/panelTiming.ts': { lines: 100, branches: 100, functions: 100 },
     './composites/PanelCarousel.tsx': { lines: 95, branches: 80, functions: 85 },
   },
