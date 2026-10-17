@@ -79,6 +79,9 @@ export * from './composites/OfflineBanner';
 export * from './composites/SyncStatusDot';
 export * from './composites/SyncStatusBar';
 export * from './composites/SyncStatusShell';
+export * from './composites/StatusStrip';
+export * from './composites/IntroAnimation';
+export * from './lib/syncStatus';
 export * from './composites/ToastViewport';
 export * from './composites/PanelCarousel';
 

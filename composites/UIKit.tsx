@@ -15,6 +15,7 @@ import { ToggleRow } from './ToggleRow';
 import { EmptyState } from './EmptyState';
 import { Checklist, Chip, Choice, IconButton, RadioOption } from './Controls';
 import { Banner, Meter, StageStrip, StateLine, StepTrail, Tile } from './Status';
+import { StatusStrip } from './StatusStrip';
 import { BottomBar, ChatBubble, Disclosure, Grid, MoreMenu, Panel, Properties } from './Structure';
 import { NumberField, TextField } from './Fields';
 import { AppearanceSection } from './AppearanceSection';
@@ -211,6 +212,9 @@ export function UIKit() {
       </Section>
 
       <Section title="Notices">
+        <StatusStrip state="saved" />
+        <StatusStrip state="syncing" pendingCount={3} />
+        <StatusStrip state="offline" pendingCount={1} offlineMessage="No connection — showing saved data" />
         <Banner>Offline — showing your saved program</Banner>
         <Banner action={<Button.Ghost size="sm" fullWidth={false}>Leave</Button.Ghost>}>Preview · not saved</Banner>
         {(['info', 'success', 'warning', 'danger'] as const).map((tone) => (

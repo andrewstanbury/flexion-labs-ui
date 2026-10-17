@@ -47,7 +47,7 @@ describe('IconTile', () => {
 });
 
 describe('website art (v0.38.0)', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+   
   const { ArtOrb, ArtPlaceholder, EmptyState, HeroBanner, Card } = require('../../index');
 
   it('ArtOrb is a round illustration placeholder carrying its brief, with an optional icon disc', () => {
