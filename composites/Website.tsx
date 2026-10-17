@@ -54,8 +54,11 @@ const TONES: Record<ArtTone, [string, string]> = {
 // Stands in for a photo or illustration until real artwork exists, in the
 // website's style: a tonal gradient with fine diagonal stripes and a caption
 // chip saying what the real image should show. `brief` is the art direction.
+// The website's caption glyphs, per kind.
+const GLYPH = { photo: '◐', illustration: '✦', video: '▶' } as const;
+
 export type ArtPlaceholderProps = {
-  kind?: 'photo' | 'illustration';
+  kind?: 'photo' | 'illustration' | 'video';
   brief: string;
   tone?: ArtTone;
   aspectRatio?: number;
@@ -109,7 +112,7 @@ export function ArtPlaceholder({
               patternUnits="userSpaceOnUse"
               patternTransform="rotate(-45)"
             >
-              <svg.Rect width="2" height="14" fill="#FFFFFF" opacity={0.12} />
+              <svg.Rect width="2" height="14" fill="#FFFFFF" opacity={0.1} />
             </svg.Pattern>
           </svg.Defs>
           <svg.Rect width="100%" height="100%" fill={`url(#g${id})`} />
@@ -128,22 +131,72 @@ export function ArtPlaceholder({
             paddingHorizontal: space[3],
             paddingVertical: space[2],
             borderRadius: 12,
-            backgroundColor: 'rgba(255,255,255,0.84)',
+            backgroundColor: 'rgba(255,255,255,0.82)',
           }}
         >
-          <Ionicons
-            name={kind === 'photo' ? 'image-outline' : 'color-palette-outline'}
-            size={14}
-            color={colors.sage[600]}
-          />
+          <Text style={{ fontSize: 15, lineHeight: 18, color: colors.sage[600] }}>{GLYPH[kind]}</Text>
           <View style={{ flexShrink: 1 }}>
-            <Text variant="label" style={{ color: colors.sage[700], textTransform: 'uppercase' }}>
+            <Text variant="label" style={{ color: colors.sage[700], textTransform: 'uppercase', letterSpacing: 0.9 }}>
               {kind}
             </Text>
             <Text variant="caption" style={{ color: colors.sand[700] }}>
               {brief}
             </Text>
           </View>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+// ── ArtOrb ────────────────────────────────────────────────────────────────
+// The website's round character art (its stat cards): a circular striped
+// tonal placeholder standing in for an illustration. With `icon`, a white disc
+// with the icon sits in the middle — the site's play-button motif — for empty
+// and status screens where the picture also has to say what happened.
+export type ArtOrbProps = {
+  /** What the real illustration should show (read to screen readers). */
+  brief: string;
+  tone?: ArtTone;
+  size?: number;
+  icon?: IoniconName;
+  style?: StyleProp<ViewStyle>;
+  testID?: string;
+};
+
+export function ArtOrb({ brief, tone = 'sage', size = 120, icon, style, testID }: ArtOrbProps) {
+  const disc = Math.round(size * 0.46);
+  return (
+    <View testID={testID} style={[{ width: size, height: size }, style]}>
+      <ArtPlaceholder
+        kind="illustration"
+        brief={brief}
+        tone={tone}
+        bare
+        rounded={false}
+        style={{ width: size, height: size, borderRadius: size / 2 }}
+      />
+      {icon ? (
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            top: (size - disc) / 2,
+            left: (size - disc) / 2,
+            width: disc,
+            height: disc,
+            borderRadius: disc / 2,
+            backgroundColor: colors.white,
+            alignItems: 'center',
+            justifyContent: 'center',
+            shadowColor: colors.black,
+            shadowOpacity: 0.18,
+            shadowRadius: 15,
+            shadowOffset: { width: 0, height: 10 },
+            elevation: 4,
+          }}
+        >
+          <Ionicons name={icon} size={Math.round(disc * 0.46)} color={colors.sage[700]} />
         </View>
       ) : null}
     </View>

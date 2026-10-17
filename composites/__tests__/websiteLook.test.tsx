@@ -45,3 +45,36 @@ describe('IconTile', () => {
     expect(() => render(<IconTile name="walk-outline" tone="highlight" size="lg" />)).not.toThrow();
   });
 });
+
+describe('website art (v0.38.0)', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { ArtOrb, ArtPlaceholder, EmptyState, HeroBanner, Card } = require('../../index');
+
+  it('ArtOrb is a round illustration placeholder carrying its brief, with an optional icon disc', () => {
+    const { getByLabelText, toJSON } = render(<ArtOrb brief="Character waving" size={100} icon="sparkles" testID="orb" />);
+    expect(getByLabelText('illustration placeholder: Character waving')).toBeTruthy();
+    expect(JSON.stringify(toJSON())).toContain('"borderRadius":50');
+  });
+
+  it('ArtPlaceholder captions use the website glyphs, including video', () => {
+    const { getByText } = render(<ArtPlaceholder kind="video" brief="Step player close-up" />);
+    expect(getByText('▶')).toBeTruthy();
+    expect(getByText('video')).toBeTruthy();
+    expect(getByText('Step player close-up')).toBeTruthy();
+  });
+
+  it('EmptyState shows its icon on the round art', () => {
+    const { getByLabelText } = render(<EmptyState iconName="people-outline" heading="No patients yet" />);
+    expect(getByLabelText('illustration placeholder: Illustration: No patients yet')).toBeTruthy();
+  });
+
+  it('HeroBanner puts the highlight words after the title', () => {
+    const { getByText } = render(<HeroBanner title="Good morning," highlight="Andrew" />);
+    expect(getByText(' Andrew')).toBeTruthy();
+  });
+
+  it('plain cards sit on the elevated (white) surface, like the website cards', () => {
+    const { toJSON } = render(<Card><></></Card>);
+    expect(JSON.stringify(toJSON())).toMatch(/"backgroundColor":"#(FFFFFF|FFFCF8|ffffff)"/i);
+  });
+});

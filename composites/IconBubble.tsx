@@ -13,7 +13,7 @@ export function IconBubble({
   color: string;
 }) {
   return (
-    <View className="w-10 h-10 rounded-full bg-blossom-50 dark:bg-sand-700 items-center justify-center">
+    <View className="w-10 h-10 rounded-xl bg-sage-50 dark:bg-sand-700 items-center justify-center">
       <Ionicons name={name} size={18} color={color} />
     </View>
   );

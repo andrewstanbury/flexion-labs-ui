@@ -3,6 +3,22 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.38.0
+
+**Website graphics across the apps.**
+
+- New `ArtOrb`: the website's round character art (its stat cards) — a
+  circular striped tonal placeholder for an illustration, with an optional
+  white icon disc (the site's play-button motif).
+- `EmptyState` and `StatusScreen` show their icon on an `ArtOrb` instead of a
+  flat muted circle.
+- `ArtPlaceholder` captions match the site: its glyphs (◐ photo, ✦
+  illustration, ▶ video — `video` is new), 82% caption chip, 10% stripes.
+- `Card` (plain) sits on the elevated surface — white in light mode — like the
+  site's cards on cream; elevated adds the soft shadow as before.
+- `IconBubble` is the site's rounded-square icon tile (sage-50) rather than a
+  pink circle.
+
 ## v0.37.0
 
 **Narrator redesign: buffered recordings, and the narrator drives the clock.**

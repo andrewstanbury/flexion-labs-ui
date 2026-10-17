@@ -25,7 +25,11 @@ function paddingFor(p: CardProps['padding']) {
 // for `padding="lg"` — this only moves what a card gets when it says nothing.
 function CardRoot({ variant = 'plain', padding = 'md', style, children, ...rest }: CardProps) {
   const t = useTheme();
-  const bg = variant === 'elevated' ? t.surfaceElevated : t.surfaceMuted;
+  // Both variants sit on the elevated (white, in light mode) surface, as the
+  // flexionlabs.com cards do on its cream sections (v0.38.0; plain cards used
+  // to be a muted cream that barely differed from the page). Elevated adds the
+  // soft shadow on top.
+  const bg = t.surfaceElevated;
   const elevation = variant === 'elevated' ? shadow.card : shadow.none;
   return (
     <View
