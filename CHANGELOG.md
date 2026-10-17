@@ -3,6 +3,25 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.36.1
+
+**Narrator: audio commands run in order (fixes next/back glitches).**
+
+- New `lib/clipSequencer.ts`: each clip start is `replace` → wait for this
+  source to load → `seekTo` → `play` → confirm playing (re-pressing play if iOS
+  dropped it). A newer start drops everything pending from older ones, and
+  loads requested within 120ms of each other coalesce into one, so a burst of
+  next/back presses loads only where it lands. Fixes the narrator going silent
+  or pausing after next, or after next then back.
+- `NarrationBackend` is now `speak` / `stopSpeech` / `startClip` / `stopClip`;
+  the driver no longer tracks loaded clips (the sequencer does). Internal — not
+  exported.
+- The controls' auto-hide restarts on every control press, so they no longer
+  hide mid-tapping (a later tap landed on the panel and paused playback).
+- Development builds log each viewer action as `[narrator] action …`.
+- `jest.setup.ts`'s expo-audio mock now emits status events like iOS.
+- The sequencer is in the `test:player` coverage gate.
+
 ## v0.36.0
 
 **The flexionlabs.com look, applied across the apps.**

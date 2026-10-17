@@ -48,14 +48,31 @@ jest.mock('nativewind', () => ({
 // is tested against this shared player stub (play/pause/replace calls), not
 // real audio. One player object so tests can inspect it via createAudioPlayer.
 jest.mock('expo-audio', () => {
+  // Emits status events the way iOS does, synchronously so tests stay simple:
+  // replace() → unloaded then loaded; play() → playing; pause() → not playing.
+  const listeners: ((s: unknown) => void)[] = [];
+  const emit = (s: unknown) => listeners.forEach((l) => l(s));
   const player = {
-    play: jest.fn(),
-    pause: jest.fn(),
-    replace: jest.fn(),
+    play: jest.fn(() => emit({ isLoaded: true, playing: true })),
+    pause: jest.fn(() => emit({ isLoaded: true, playing: false })),
+    replace: jest.fn(() => {
+      emit({ isLoaded: false, playing: false });
+      emit({ isLoaded: true, playing: false });
+    }),
     remove: jest.fn(),
     setPlaybackRate: jest.fn(),
     seekTo: jest.fn().mockResolvedValue(undefined),
-    addListener: jest.fn(() => ({ remove: jest.fn() })),
+    addListener: jest.fn((_event: string, fn: (s: unknown) => void) => {
+      listeners.push(fn);
+      return {
+        remove: jest.fn(() => {
+          const i = listeners.indexOf(fn);
+          if (i >= 0) listeners.splice(i, 1);
+        }),
+      };
+    }),
+    __emit: emit,
+    __listeners: listeners,
   };
   return {
     createAudioPlayer: jest.fn(() => player),

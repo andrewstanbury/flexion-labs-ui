@@ -34,7 +34,7 @@ Consequences:
 - App code must import from the package root (`@flexion-labs/ui`), never from a
   deep path inside the package.
 - Release history is in [`CHANGELOG.md`](./CHANGELOG.md) (keep it updated on every
-  version bump) plus the git tags. Current tags: v0.1.0 … v0.36.0.
+  version bump) plus the git tags. Current tags: v0.1.0 … v0.36.1.
 
 ### Current public export surface (the contract)
 
@@ -128,7 +128,8 @@ top-level folder, it ships automatically — that's the intended behavior.
 
 `PanelCarousel` is the most failure-prone component in both apps. Its rule:
 **narration is a function of playback state** — the pure model in
-`lib/panelPlayback.ts` decides, `lib/narrationDriver.ts` acts, the component
+`lib/panelPlayback.ts` decides, `lib/narrationDriver.ts` acts (through `lib/clipSequencer.ts`, which orders
+the native audio commands), the component
 only dispatches and renders. Never start or stop speech/audio anywhere else.
 Any change to these files must keep `npm run test:player` green (it enforces a
 coverage floor) and add tests for the behaviour changed — see
