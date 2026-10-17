@@ -10,12 +10,14 @@ import {
   ViewStyle,
 } from 'react-native';
 import * as Speech from 'expo-speech';
+import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 import { Icon } from '../primitives/Icon';
 import { Pressable } from '../primitives/Pressable';
 // The design-system Text, not RN's — the clock readout inherits the same font
 // scaling and variant ramp as every other label in both apps.
 import { Text } from '../primitives/Text';
 import { useTheme } from '../UIProvider';
+import { NARRATION_RATE, narrationMs } from '../lib/panelTiming';
 
 const DEFAULT_INTERVAL_MS = 1800;
 const FADE_MS = 900;
@@ -41,20 +43,8 @@ const CONTROLS_FADE_MS = 250;
 // touching WORDS_PER_MINUTE: the estimate is shared with the seek/timeline
 // math, so it is the more expensive knob to move.
 const DEFAULT_HOLD_SECONDS = 0.5;
-// Conservative (slower-than-typical) reading pace, so the ESTIMATE of how
-// long narration will take leans long rather than short — better to hold a
-// panel a beat too long than cut the narrator off mid-sentence. Duration is
-// estimated up front rather than measured from a live TTS callback so the
-// timeline/seek math stays fully deterministic (and testable without a real
-// speech engine); NARRATION_BUFFER_MS below adds extra margin on top.
-const WORDS_PER_MINUTE = 130;
-const NARRATION_BUFFER_MS = 200;
-// Slightly slower than expo-speech's default (1.0) — a calmer, more natural
-// narrator cadence, closer to how someone would actually talk you through an
-// exercise than the clipped default TTS pace. Divides into the duration
-// estimate below (a slower rate takes proportionally longer to finish) so
-// panel timing still accounts for it.
-const NARRATION_RATE = 0.92;
+// WORDS_PER_MINUTE, NARRATION_BUFFER_MS and NARRATION_RATE live in
+// lib/panelTiming.ts with the rest of the (pure, unit-tested) timing math.
 // The generated panel frames are flat images on a solid white background —
 // fixed regardless of app theme, not derived from `theme.surfaceMuted` (a
 // gray that visibly seamed against them). Letterboxing under
@@ -109,15 +99,15 @@ export type PanelStep = {
   text: string;
   // Minimum time to hold this panel, independent of narration length.
   holdSeconds?: number;
+  // Pre-generated narration for this panel (the pipeline's recorded narrator
+  // voice). When present it is played instead of on-device TTS, and its
+  // measured length replaces the word-count estimate in the panel timing.
+  // Both optional: a step without audio narrates via expo-speech as before.
+  audioUrl?: string;
+  audioDurationMs?: number;
 };
 
-type ResolvedStep = { text: string; holdSeconds: number };
-
-function estimateSpeechMs(text: string): number {
-  const words = text.trim().split(/\s+/).filter(Boolean).length;
-  if (words === 0) return 0;
-  return (words / WORDS_PER_MINUTE) * 60_000;
-}
+type ResolvedStep = { text: string; holdSeconds: number; audioUrl?: string; audioDurationMs?: number };
 
 // Which panel should be showing at a given point in elapsed playback time.
 // Panel i occupies [boundaries[i], boundaries[i+1]) — the last panel keeps
@@ -203,6 +193,12 @@ export function PanelCarousel({
   // caller actually asked for it — everything below falls straight back to
   // the pre-existing uniform-intervalMs behaviour otherwise, so every call
   // site that doesn't pass `steps`/`narrate` is unaffected.
+  // Recordings that failed to load or play this mount (expired signed URL,
+  // network error, player error status). Keyed by URL. A failed step is
+  // resolved WITHOUT its audio, so it narrates via TTS and its panel timing
+  // falls back to the word-count estimate — never a silent, overlong panel.
+  const [failedAudioUrls, setFailedAudioUrls] = useState<string[]>([]);
+
   const resolvedSteps = useMemo<ResolvedStep[] | null>(() => {
     if (!narrate && !steps) return null;
     return uris.map((_, i) => {
@@ -219,10 +215,13 @@ export function PanelCarousel({
       // the timing freely and the narration stays natural.
       const spokenHold = Math.max(1, Math.round(holdSeconds));
       const text = s?.text ?? `Hold for ${spokenHold} second${spokenHold === 1 ? '' : 's'}.`;
-      return { text, holdSeconds };
+      const audioOk = s?.audioUrl && !failedAudioUrls.includes(s.audioUrl);
+      return audioOk
+        ? { text, holdSeconds, audioUrl: s?.audioUrl, audioDurationMs: s?.audioDurationMs }
+        : { text, holdSeconds };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [narrate, steps ? JSON.stringify(steps) : null, uris.length]);
+  }, [narrate, steps ? JSON.stringify(steps) : null, uris.length, failedAudioUrls]);
 
   // Cumulative panel-start times. Panel i's own dwell time is at least
   // intervalMs, and — only when resolvedSteps is active — stretched to fit
@@ -236,10 +235,10 @@ export function PanelCarousel({
     for (let i = 0; i < uris.length; i++) {
       let duration = intervalMs;
       if (resolvedSteps) {
-        const { text, holdSeconds } = resolvedSteps[i];
+        const { holdSeconds } = resolvedSteps[i];
         const holdMs = holdSeconds * 1000;
-        const narrationMs = narrate ? estimateSpeechMs(text) / NARRATION_RATE + NARRATION_BUFFER_MS : 0;
-        duration = Math.max(intervalMs, holdMs + narrationMs);
+        const spokenMs = narrate ? narrationMs(resolvedSteps[i]) : 0;
+        duration = Math.max(intervalMs, holdMs + spokenMs);
       }
       b.push(b[i] + duration);
     }
@@ -267,10 +266,41 @@ export function PanelCarousel({
   const shownIndexRef = useRef(0);
   const pendingRef = useRef<{ slot: Slot; index: number } | null>(null);
   const mountedRef = useRef(true);
+  // One expo-audio player per mount, created lazily the first time a step
+  // with pre-generated audio is narrated (most call sites never need one).
+  // replace() swaps its source per panel rather than creating a player per
+  // panel — players hold native resources until remove().
+  const audioPlayerRef = useRef<AudioPlayer | null>(null);
+  const audioModeSetRef = useRef(false);
+  // URL the player is currently playing, so a late error status for a
+  // recording we already moved past is not misattributed to the current one.
+  const currentAudioUrlRef = useRef<string | null>(null);
+  const audioSubscriptionRef = useRef<{ remove: () => void } | null>(null);
+  // Stops BOTH narration channels. Every place that used to call Speech.stop()
+  // goes through here, so pause/seek/mute/background/screen-reader/unmount cut
+  // off recorded audio exactly as they always cut off TTS.
+  const stopNarration = () => {
+    Speech.stop();
+    audioPlayerRef.current?.pause();
+  };
+  // Marks a recording as unusable and re-narrates the current panel. Clearing
+  // narratedIndexRef makes the narration effect run again; by then the step
+  // has been re-resolved without audio, so it speaks via TTS.
+  const fallBackToTts = (url: string) => {
+    if (!mountedRef.current) return;
+    audioPlayerRef.current?.pause();
+    currentAudioUrlRef.current = null;
+    narratedIndexRef.current = -1;
+    setFailedAudioUrls((prev) => (prev.includes(url) ? prev : [...prev, url]));
+  };
   useEffect(
     () => () => {
       mountedRef.current = false;
       Speech.stop();
+      audioSubscriptionRef.current?.remove();
+      audioSubscriptionRef.current = null;
+      audioPlayerRef.current?.remove();
+      audioPlayerRef.current = null;
     },
     [],
   );
@@ -369,7 +399,7 @@ export function PanelCarousel({
     pendingRef.current = null;
     fastHideRef.current = false;
     narratedIndexRef.current = -1;
-    Speech.stop();
+    stopNarration();
     setSlotUris([uris[0] ?? null, null]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uris.join('|')]);
@@ -406,7 +436,7 @@ export function PanelCarousel({
   // precisely the desync this control has to avoid.
   const cycleSpeed = () => {
     narratedIndexRef.current = -1;
-    Speech.stop();
+    stopNarration();
     setSpeed((prev) => SPEEDS[(SPEEDS.indexOf(prev) + 1) % SPEEDS.length]);
   };
 
@@ -462,8 +492,47 @@ export function PanelCarousel({
     const idx = indexForElapsed(elapsedMs, boundaries);
     if (narratedIndexRef.current === idx) return;
     narratedIndexRef.current = idx;
-    Speech.stop();
-    Speech.speak(resolvedSteps[idx].text, {
+    stopNarration();
+    const step = resolvedSteps[idx];
+    if (step.audioUrl) {
+      // Recorded narration. playsInSilentMode mirrors what
+      // useApplicationAudioSession:false buys expo-speech below: without it
+      // the iOS ring/silent switch mutes the narrator. Set once per mount.
+      if (!audioModeSetRef.current) {
+        audioModeSetRef.current = true;
+        setAudioModeAsync({ playsInSilentMode: true }).catch(() => {
+          // Audio session unavailable — playback still attempts below.
+        });
+      }
+      const url = step.audioUrl;
+      try {
+        let player = audioPlayerRef.current;
+        if (!player) {
+          player = createAudioPlayer({ uri: url });
+          audioPlayerRef.current = player;
+          // Load/playback failures (expired signed URL, network, decoder)
+          // arrive asynchronously as an error status, not a thrown error.
+          audioSubscriptionRef.current = player.addListener('playbackStatusUpdate', (status) => {
+            const current = currentAudioUrlRef.current;
+            if (status.error && current) fallBackToTts(current);
+          });
+        } else {
+          player.replace({ uri: url });
+        }
+        currentAudioUrlRef.current = url;
+        // Same factor the clock uses, so the recording stays locked to the
+        // panels at 0.75x/1.5x. NOT multiplied by NARRATION_RATE: that slows
+        // the TTS engine's clipped default pace, while the recording is already
+        // at its natural pace and its duration was measured as-is.
+        player.setPlaybackRate(speed);
+        player.play();
+      } catch {
+        // Native player refused the source outright — same fallback.
+        fallBackToTts(url);
+      }
+      return;
+    }
+    Speech.speak(step.text, {
       // Same factor the clock uses, so the narrator finishes a panel's text in
       // the same proportion of that panel's (now shorter/longer) dwell time.
       rate: NARRATION_RATE * speed,
@@ -482,8 +551,8 @@ export function PanelCarousel({
   // rather than waiting for the utterance to finish on its own.
   useEffect(() => {
     if (!narrate) return;
-    if (!isPlaying || !active || muted || screenReaderEnabled) Speech.stop();
-  }, [narrate, isPlaying, active, muted, screenReaderEnabled]);
+    if (!isPlaying || !active || muted || screenReaderEnabled) stopNarration();
+  },[narrate, isPlaying, active, muted, screenReaderEnabled]);
 
   const handleSlotLoad = (slot: Slot) => {
     const pending = pendingRef.current;
@@ -526,7 +595,7 @@ export function PanelCarousel({
   const rewindToStart = () => {
     fastHideRef.current = true;
     narratedIndexRef.current = -1;
-    Speech.stop();
+    stopNarration();
     setElapsedMs(0);
     pendingRef.current = null;
     opacities[activeSlotRef.current].setValue(0);
@@ -572,7 +641,7 @@ export function PanelCarousel({
     setMuted((m) => {
       const next = !m;
       if (next) {
-        Speech.stop();
+        stopNarration();
       } else {
         // Re-narrate whatever panel is current instead of leaving it silent
         // until the next panel change.
@@ -589,7 +658,7 @@ export function PanelCarousel({
   const applyTargetIndex = (targetIndex: number, targetMs: number) => {
     setIsPlaying(false);
     setControlsVisible(true);
-    Speech.stop();
+    stopNarration();
     if (targetIndex !== shownIndexRef.current) {
       pendingRef.current = null;
       const slot = activeSlotRef.current;
