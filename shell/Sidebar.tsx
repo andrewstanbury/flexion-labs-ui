@@ -7,6 +7,7 @@ import { useSidebarStore } from '../hooks/useSidebarStore';
 import { Pressable } from '../primitives/Pressable';
 import { Text } from '../primitives/Text';
 import type { TabBarProps } from './TabBar';
+import { TabBadge, tabA11yLabel } from './TabBadge';
 
 // Sidebar — the wide-screen (tablet / desktop web) counterpart to TabBar. It
 // takes the SAME { state, navigation, tabs } props as TabBar so a layout can
@@ -43,7 +44,7 @@ export function Sidebar({ state, navigation, tabs, brand = 'Flexion' }: SidebarP
       <Pressable.Touch
         key={route.key}
         accessibilityRole="tab"
-        accessibilityLabel={cfg.label}
+        accessibilityLabel={tabA11yLabel(cfg.label, cfg.badge)}
         accessibilityState={{ selected: focused }}
         style={[
           styles.item,
@@ -55,7 +56,10 @@ export function Sidebar({ state, navigation, tabs, brand = 'Flexion' }: SidebarP
           if (!focused && !e.defaultPrevented) navigation.navigate(route.name);
         }}
       >
-        <Ionicons name={focused ? cfg.active : cfg.inactive} size={22} color={color} />
+        <View>
+          <Ionicons name={focused ? cfg.active : cfg.inactive} size={22} color={color} />
+          <TabBadge count={cfg.badge} testID={`tab-badge-${route.name}`} />
+        </View>
         {!collapsed && (
           <Text variant="label" style={{ color, fontWeight: focused ? '600' : '500' }}>
             {cfg.label}

@@ -7,6 +7,7 @@ import { useTheme } from '../UIProvider';
 import { Pressable } from '../primitives/Pressable';
 import { Text } from '../primitives/Text';
 import { useTabBarHeightStore } from '../hooks/useTabBarHeightStore';
+import { TabBadge, tabA11yLabel } from './TabBadge';
 
 // TabBar — design-system replacement for the inline CustomTabBar in
 // (app)/_layout.tsx. Driven by a config map keyed on route name so layouts
@@ -20,6 +21,8 @@ export type TabConfig = {
   active:   IoniconsName;
   inactive: IoniconsName;
   label:    string;
+  /** A count pinned to the icon (e.g. items waiting). Hidden when 0 or absent. */
+  badge?:   number;
 };
 
 export type TabBarProps = {
@@ -65,6 +68,9 @@ export function TabBar({ state, navigation, tabs }: TabBarProps) {
           <Pressable.Touch
             key={route.key}
             style={styles.tab}
+            accessibilityRole="tab"
+            accessibilityLabel={tabA11yLabel(cfg.label, cfg.badge)}
+            accessibilityState={{ selected: focused }}
             onPress={() => {
               const e = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
               if (!focused && !e.defaultPrevented) navigation.navigate(route.name);
@@ -72,6 +78,7 @@ export function TabBar({ state, navigation, tabs }: TabBarProps) {
           >
             <View style={styles.pill}>
               <Ionicons name={focused ? cfg.active : cfg.inactive} size={22} color={color} />
+              <TabBadge count={cfg.badge} testID={`tab-badge-${route.name}`} />
             </View>
             <Text
               variant="label"

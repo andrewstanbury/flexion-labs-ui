@@ -34,7 +34,7 @@ Consequences:
 - App code must import from the package root (`@flexion-labs/ui`), never from a
   deep path inside the package.
 - Release history is in [`CHANGELOG.md`](./CHANGELOG.md) (keep it updated on every
-  version bump) plus the git tags. Current tags: v0.1.0 … v0.40.0.
+  version bump) plus the git tags. Current tags: v0.1.0 … v0.41.0.
 
 ### Current public export surface (the contract)
 
@@ -86,7 +86,7 @@ breaking release across both apps.
   are easy to miss when repointing: `PanelCarousel` needs `expo-speech`,
   `AppLockToggle` needs `expo-local-authentication` (both peer deps as of
   their respective versions — v0.21.0 and v0.23.0).
-- **Shell** (`shell/`): `TabBar`, `Header`, `BackButton`, `Modal`,
+- **Shell** (`shell/`): `TabBar` (+ `TabBadge`, `tabA11yLabel`; `TabConfig.badge` since v0.41.0), `Header`, `BackButton`, `Modal`,
   `KeyboardScreen`.
 
 > Note: `useButtonShape` was a v0.1.0 export removed in v0.2.0 — it is **not**

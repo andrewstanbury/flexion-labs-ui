@@ -3,6 +3,11 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.41.0 — 2026-10-17
+
+- `TabConfig.badge?: number` — a count pinned to a tab's icon in `TabBar` and `Sidebar` (hidden at 0, "99+" past 99). The tab's spoken name carries it ("Review, 3"), and `TabBar` tabs now announce as tabs with their selected state.
+- New exports: `TabBadge`, `tabA11yLabel`.
+
 ## v0.40.0
 
 **Seamless launch, and cached media that follows the server.**
