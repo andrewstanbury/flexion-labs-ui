@@ -32,4 +32,43 @@ describe('<Button />', () => {
     expect(seen).toHaveLength(1);
     expect(seen[0]).toBe(resolvePalette('light').accentOn);
   });
+
+  it('draws a disabled button grey, whatever its variant, and does not press it', () => {
+    const light = resolvePalette('light');
+    const onPress = jest.fn();
+    for (const B of [Button.Primary, Button.Secondary, Button.Destructive]) {
+      const seen: (string | undefined)[] = [];
+      const Stub = ({ color }: { color?: string }) => {
+        seen.push(color);
+        return null;
+      };
+      const { getByText, getByRole, unmount } = render(
+        <B disabled onPress={onPress} leftIcon={<Stub />}>
+          Send
+        </B>,
+      );
+      expect(labelStyle(getByText('Send') as never)).toMatchObject({ color: light.textMuted });
+      expect(seen[0]).toBe(light.textMuted);
+      expect(getByRole('button').props.accessibilityState).toMatchObject({ disabled: true });
+      fireEvent.press(getByText('Send'));
+      unmount();
+    }
+    expect(onPress).not.toHaveBeenCalled();
+  });
+
+  it('keeps a loading button in its own colours', () => {
+    const seen: (string | undefined)[] = [];
+    const Stub = ({ color }: { color?: string }) => {
+      seen.push(color);
+      return null;
+    };
+    render(
+      <Button.Primary loading leftIcon={<Stub />}>
+        Go
+      </Button.Primary>,
+    );
+    // Loading shows a spinner instead of the icon; the label colour is the
+    // accent's, not the disabled grey.
+    expect(seen).toHaveLength(0);
+  });
 });

@@ -36,8 +36,15 @@ type RootProps = ButtonProps & { variant: Variant };
 // `border` is the subtle outline on the face; `bottomEdge` is the darker base
 // the face rests on — together a bordered, raised "physical" button. On press
 // the face drops onto the base and the edge disappears (ghost stays flat).
-function useVariantStyle(variant: Variant) {
+// A disabled button (not a loading one) of any variant is drawn grey and flat:
+// muted face, muted label, no raised edge. Fading the real colours wasn't
+// enough — a white secondary button at 60% on the cream page still looked
+// tappable (v0.42.0).
+function useVariantStyle(variant: Variant, disabled = false) {
   const t = useTheme();
+  if (disabled) {
+    return { bg: t.surfaceMuted, fg: t.textMuted, border: t.border, bottomEdge: 'transparent' };
+  }
   switch (variant) {
     case 'primary':
       return { bg: t.accentSurface, fg: t.accentOn, border: t.accentBorder, bottomEdge: t.accentEdge };
@@ -79,7 +86,9 @@ function ButtonRoot({
   style,
   accessibilityLabel,
 }: RootProps) {
-  const v = useVariantStyle(variant);
+  // Disabled wins over loading for the look: a loading button keeps its colours.
+  const greyed = disabled && !loading;
+  const v = useVariantStyle(variant, greyed);
   const s = sizeStyle(size);
   const isInactive = disabled || loading;
   const flat = variant === 'ghost';
@@ -120,7 +129,7 @@ function ButtonRoot({
         {
           alignSelf: fullWidth ? 'stretch' : 'flex-start',
           paddingBottom: edge,
-          opacity: isInactive ? 0.6 : 1,
+          opacity: loading ? 0.6 : 1,
         },
         style,
       ]}
@@ -168,7 +177,7 @@ function ButtonRoot({
               // Sentence case (v0.30.0) — the website and the cleaner reference
               // apps label buttons as words, not shouted caps. Primary text uses
               // the accent's on-color token rather than a forced literal.
-              style={variant === 'primary' ? { color: v.fg } : undefined}
+              style={variant === 'primary' || greyed ? { color: v.fg } : undefined}
             >
               {children}
             </Text>
