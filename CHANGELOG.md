@@ -3,6 +3,11 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+
+## v0.42.0 — 2026-10-17
+
+- **Disabled buttons look disabled.** Any variant, when `disabled` (and not `loading`), draws a grey face (`surfaceMuted`), a muted label and icon (`textMuted`) and no raised edge, at full opacity. Before, a disabled button was its normal self at 60% opacity, so a white secondary button on the cream page still looked tappable. Loading buttons keep their colours (still dimmed).
+
 ## v0.41.0 — 2026-10-17
 
 - `TabConfig.badge?: number` — a count pinned to a tab's icon in `TabBar` and `Sidebar` (hidden at 0, "99+" past 99). The tab's spoken name carries it ("Review, 3"), and `TabBar` tabs now announce as tabs with their selected state.
