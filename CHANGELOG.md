@@ -3,6 +3,12 @@
 The shared design system for the Flexion Labs client + practitioner apps. Consumed
 via git tag (`github:andrewstanbury/flexion-labs-ui#vX.Y.Z`). Newest first.
 
+## v0.41.0 — 2026-10-17
+
+- `TabConfig.badge?: number` — a count pinned to a tab's icon in `TabBar` and `Sidebar` (hidden at 0, "99+" past 99). The tab's spoken name carries it ("Review, 3"), and `TabBar` tabs now announce as tabs with their selected state.
+- New exports: `TabBadge`, `tabA11yLabel`.
+- `IntroAnimation` starts from the app icon: the first frame is the icon tile (F and dot) on the splash's `backdrop` colour (new prop), exactly as the native splash draws it; the tile then grows to fill the screen before the dot pops back in, the mark settles and the wordmark rises. The mark now uses the icon's geometry. New export `SPLASH_TILE_FRACTION` (0.3): the splash image is the tile on a transparent square 1/0.3 times its side. `INTRO_MS` gains `expand`.
+
 ## v0.40.0
 
 **Seamless launch, and cached media that follows the server.**

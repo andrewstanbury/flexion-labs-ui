@@ -87,6 +87,7 @@ export * from './composites/PanelCarousel';
 
 // Shell
 export * from './shell/TabBar';
+export * from './shell/TabBadge';
 export * from './shell/Sidebar';
 export * from './shell/Header';
 export * from './shell/BackButton';

@@ -1,6 +1,6 @@
 import { act, fireEvent, render } from '@testing-library/react-native';
 import { UIProvider } from '../../UIProvider';
-import { IntroAnimation } from '../IntroAnimation';
+import { IntroAnimation, SPLASH_TILE_FRACTION } from '../IntroAnimation';
 
 const LOOK = { background: '#F4EEE2', ink: '#46624C', dot: '#7A9B7E' };
 
@@ -45,10 +45,21 @@ describe('IntroAnimation', () => {
     expect(onDone).toHaveBeenCalledTimes(1);
   });
 
-  it('starts on the splash background', async () => {
+  it('starts on the splash: the icon tile on the backdrop', async () => {
+    const { getByTestId } = await mount(jest.fn(), { backdrop: '#46624C', splashSize: 400 });
+    const flat = (id: string) => Object.assign({}, ...[getByTestId(id).props.style].flat(3));
+    expect(flat('intro-animation').backgroundColor).toBe('#46624C');
+    const tile = flat('intro-tile');
+    expect(tile.backgroundColor).toBe(LOOK.background);
+    // The tile is SPLASH_TILE_FRACTION of the splash image, centred.
+    expect(tile.width).toBeCloseTo(400 * SPLASH_TILE_FRACTION);
+    expect(tile.height).toBeCloseTo(400 * SPLASH_TILE_FRACTION);
+  });
+
+  it('without a backdrop, the screen is the tile colour throughout', async () => {
     const { getByTestId } = await mount(jest.fn());
-    const style = [getByTestId('intro-animation').props.style].flat(3);
-    expect(style.some((s: { backgroundColor?: string } | undefined) => s?.backgroundColor === LOOK.background)).toBe(true);
+    const style = Object.assign({}, ...[getByTestId('intro-animation').props.style].flat(3));
+    expect(style.backgroundColor).toBe(LOOK.background);
   });
 
   it('reports its first frame once, for the app to hide the native splash', async () => {
